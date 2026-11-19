@@ -371,12 +371,15 @@ fn install_runtime(
     let staging = data_dir.join("runtime-staging");
     let _ = fs::remove_dir_all(&staging);
     fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
-    let status = Command::new(&seven)
+    let mut extract = Command::new(&seven);
+    extract
         .arg("x")
         .arg(&pack)
         .arg(format!("-o{}", staging.display()))
-        .arg("-y")
-        .creation_flags(CREATE_NO_WINDOW)
+        .arg("-y");
+    #[cfg(target_os = "windows")]
+    extract.creation_flags(CREATE_NO_WINDOW);
+    let status = extract
         .status()
         .map_err(|e| format!("7zr failed: {e}"))?;
     let _ = fs::remove_file(&pack);
