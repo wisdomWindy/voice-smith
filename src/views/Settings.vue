@@ -1,10 +1,48 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useEngineStore } from '../stores/engine'
+import { checkForUpdate, installUpdate } from '../lib/updater'
 
 const engine = useEngineStore()
 const exporting = ref(false)
 const message = ref('')
+const updateMessage = ref('')
+const updateVersion = ref('')
+const updateAvailable = ref(false)
+const updating = ref(false)
+const updateProgress = ref(0)
+
+async function checkUpdate() {
+  updateMessage.value = '检查中…'
+  try {
+    const result = await checkForUpdate()
+    updateAvailable.value = result.available
+    updateVersion.value = result.version ?? ''
+    updateMessage.value = result.message
+  } catch (err) {
+    updateMessage.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+async function install() {
+  updating.value = true
+  updateProgress.value = 0
+  updateMessage.value = '下载中…'
+  try {
+    await installUpdate((percent) => {
+      updateProgress.value = percent
+      updateMessage.value = `下载中 ${percent}%`
+    })
+    updateMessage.value = '安装完成，正在重启…'
+  } catch (err) {
+    updateMessage.value = err instanceof Error ? err.message : String(err)
+    updating.value = false
+  }
+}
+
+onMounted(() => {
+  void checkUpdate()
+})
 
 async function exportDiagnostics() {
   if (!engine.client) return
@@ -50,8 +88,16 @@ async function exportDiagnostics() {
         <span>Python</span><strong>{{ engine.health?.python ?? '—' }}</strong>
         <span>数据目录</span><strong class="ellipsis">{{ engine.health?.data_dir ?? '—' }}</strong>
         <span>遥测</span><strong>关闭</strong>
-        <span>更新检查</span><strong>默认关闭</strong>
+        <span>更新检查</span><strong>{{ updateMessage || '自动检查' }}</strong>
       </div>
+
+      <div class="row gap" style="margin-top:12px">
+        <button class="button ghost" :disabled="updating" @click="checkUpdate">检查更新</button>
+        <button v-if="updateAvailable" class="button primary" :disabled="updating" @click="install">
+          {{ updating ? `更新中 ${updateProgress}%` : `安装 ${updateVersion}` }}
+        </button>
+      </div>
+      <progress v-if="updating" :value="updateProgress" max="100" style="width:100%;margin-top:8px"></progress>
 
       <div class="divider" />
       <p v-if="message" class="muted small">{{ message }}</p>

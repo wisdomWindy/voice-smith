@@ -70,6 +70,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build installer
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --bundles ${{ matrix.bundle }}
       - name: Collect installer
         shell: bash
@@ -80,9 +83,47 @@ jobs:
           else
             cp src-tauri/target/release/bundle/dmg/*.dmg "dist-assets/VoiceSmith-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}.dmg"
           fi
+          find src-tauri/target/release/bundle -name '*.sig' -exec cp {} dist-assets/ \;
+          find src-tauri/target/release/bundle -name '*.app.tar.gz' -exec cp {} dist-assets/ \;
       - name: Upload to release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "v${{ needs.prepare.outputs.version }}" dist-assets/* --repo "${{ github.repository }}" --clobber
+
+  latest:
+    needs: [prepare, installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          V: ${{ needs.prepare.outputs.version }}
+        run: |
+          mkdir -p updater
+          gh release download "v$V" --repo "${{ github.repository }}" --dir updater --pattern '*.sig' --pattern '*.app.tar.gz' --pattern '*.exe'
+          python - <<'PY'
+          import json, os, glob, datetime
+          from pathlib import Path
+
+          version = os.environ["V"]
+          repo = os.environ.get("GITHUB_REPOSITORY", "wisdomWindy/voice-smith")
+          base = f"https://github.com/{repo}/releases/download/v{version}"
+          out = {"version": version, "notes": "VoiceSmith update", "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(), "platforms": {}}
+
+          def add(key, asset, sig):
+              if Path(asset).exists() and Path(sig).exists():
+                  out["platforms"][key] = {"signature": Path(sig).read_text().strip(), "url": f"{base}/{Path(asset).name}"}
+
+          add("windows-x86_64", f"updater/VoiceSmith-{version}-windows-x64-setup.exe", f"updater/VoiceSmith-{version}-windows-x64-setup.exe.sig")
+          for key, name in (("darwin-x86_64", "macos-intel"), ("darwin-aarch64", "macos-apple-silicon")):
+              apps = glob.glob("updater/*.app.tar.gz")
+              if apps:
+                  add(key, apps[0], apps[0] + ".sig")
+
+          Path("updater/latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
+          print(json.dumps(out, ensure_ascii=False, indent=2))
+          PY
+          gh release upload "v$V" updater/latest.json --repo "${{ github.repository }}" --clobber
