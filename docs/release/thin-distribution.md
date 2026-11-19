@@ -24,7 +24,7 @@ Verified locally with HTTP:
 
 ## GitHub Release (published)
 
-Release: https://github.com/wisdomWindy/voice-smith/releases/tag/v0.1.0
+Release: https://github.com/wisdomWindy/voice-smith/releases/tag/v0.1.1
 
 Because GitHub allows **at most 2GB per asset**, packs are split:
 

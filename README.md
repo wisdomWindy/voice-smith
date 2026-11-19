@@ -17,7 +17,7 @@ GPT-SoVITS 在本地跑推理与训练，零服务器成本，默认零遥测。
 - **UVR5**：HP2 模型人声/伴奏分离，输出人声可直接进入 ASR/训练。
 - **M5 情绪参考**：音色可绑定多套情绪参考音频；工作台切换后真实推理已验证。
 - **模型库**：列出训练产出的 S1/S2/优化器权重，可删除（路径限制在 training/experiments）。
-- **M4 安装器完成**：Thin Setup + Runtime Pack + Offline Assets 三段式；Inno Setup 薄安装器 **3.5MB**；v0.1.0 Release 已发布；runtime/engine/data 全部位于用户选择的安装目录。
+- **M4 安装器完成**：Thin Setup + Runtime Pack + Offline Assets 三段式；Inno Setup 薄安装器 **3.5MB**；v0.1.1 Release 已发布；runtime/engine/data 全部位于用户选择的安装目录。
 
 ## 架构
 

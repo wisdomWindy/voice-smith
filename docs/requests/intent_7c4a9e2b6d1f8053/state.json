@@ -8,7 +8,7 @@
     "spec": true,
     "plan": true
   },
-  "currentMilestone": "Install-dir self-contained runtime/engine/data; v0.1.0 updated",
-  "updatedAt": "2026-11-19T14:00:00.000Z",
-  "notes": "安装器所选目录自包含：runtime/、engine/、data/；D:\\VoiceSmith-test 实测 sidecar/数据路径正确，doctor 8/8，V4 peak .703/clip 0。"
+  "currentMilestone": "v0.1.1 published with platform download links",
+  "updatedAt": "2026-11-19T14:40:00.000Z",
+  "notes": "v0.1.1 Release 已发布：Windows x64 Setup 3.5MB + runtime/assets parts/manifests；release notes 含直接下载链接。"
 }
