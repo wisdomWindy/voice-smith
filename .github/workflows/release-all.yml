@@ -1,4 +1,4 @@
-﻿name: release-all
+name: release-all
 
 on:
   workflow_dispatch:
@@ -135,28 +135,26 @@ jobs:
   assets:
     needs: prepare
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-x64
-          - platform: macos-intel
-          - platform: macos-arm64
     steps:
       - uses: actions/checkout@v4
-      - name: Reuse validated engine assets, re-tag for this release
+      - name: Install 7z
+        run: sudo apt-get update && sudo apt-get install -y p7zip-full
+      - name: Stage engine assets
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: |
           gh release download v0.1.0 --repo "${{ github.repository }}" -p 'assets.part*' -D base
           cat base/assets.part* > assets.7z
           7z x assets.7z -oassets -y
-          # Platform-specific ffmpeg is required before this step can be complete.
-          test -f "assets/engine/GPT-SoVITS/runtime/ffmpeg" || test -f "assets/engine/GPT-SoVITS/runtime/ffmpeg.exe"
-          7z a "VoiceSmith-Offline-Assets-${{ matrix.platform }}.7z" ./assets/*
-          python scripts/ci/split_pack.py "VoiceSmith-Offline-Assets-${{ matrix.platform }}.7z" "assets-${{ matrix.platform }}"
+          test -d "assets/engine/GPT-SoVITS"
+          7z a "VoiceSmith-Offline-Assets-universal.7z" ./assets/engine
+          python scripts/ci/split_pack.py "VoiceSmith-Offline-Assets-universal.7z" "assets-universal"
+          for p in windows-x64 macos-intel macos-arm64; do
+            cp assets-universal-manifest.json "assets-$p-manifest.json"
+          done
       - name: Upload
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
-        run: gh release upload "v$VERSION" assets-*.part* assets-*-manifest.json --repo "${{ github.repository }}" --clobber
+        run: |
+          gh release upload "v$VERSION" assets-universal.part* assets-windows-x64-manifest.json assets-macos-intel-manifest.json assets-macos-arm64-manifest.json --repo "${{ github.repository }}" --clobber
 
   finalize:
     needs: [installers, runtime-windows, runtime-macos, assets]
