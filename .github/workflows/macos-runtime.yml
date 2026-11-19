@@ -59,3 +59,6 @@ jobs:
           gh release view "v$V" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create "v$V" --repo "${{ github.repository }}" --title "VoiceSmith $V" --notes "macOS runtime packs"
           gh release upload "v$V" "VoiceSmith-Runtime-$P.7z" "runtime-sha.txt" --repo "${{ github.repository }}" --clobber
+          if [ -f "docs/releases/v$V.md" ]; then
+            gh release edit "v$V" --repo "${{ github.repository }}" --notes-file "docs/releases/v$V.md"
+          fi
