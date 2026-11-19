@@ -1,4 +1,4 @@
-﻿export const RELEASE_TAG = 'v0.1.1'
+export const RELEASE_TAG = 'v0.1.2'
 export const RELEASE_BASE = `https://github.com/wisdomWindy/voice-smith/releases/download/${RELEASE_TAG}`
 
 export const RUNTIME_MANIFEST_URL = `${RELEASE_BASE}/runtime-manifest.json`

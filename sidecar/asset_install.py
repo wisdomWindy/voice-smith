@@ -64,7 +64,9 @@ def _find_7zr() -> Path:
     candidates = []
     if getattr(sys, "frozen", False):
         candidates.append(Path(sys.executable).resolve().parent / "7zr.exe")
+        candidates.append(Path(sys.executable).resolve().parent / "7zr")
     candidates.append(Path(__file__).resolve().parent / "7zr.exe")
+    candidates.append(Path(__file__).resolve().parent / "7zr")
     candidates.append(Path(__file__).resolve().parent.parent / "7ztools" / "7zr.exe")
     for candidate in candidates:
         if candidate.exists():

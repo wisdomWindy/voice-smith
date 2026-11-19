@@ -259,8 +259,16 @@ struct PackManifest {
     parts: Vec<PackPart>,
 }
 
+fn curl_program() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "curl.exe"
+    } else {
+        "curl"
+    }
+}
+
 fn download_url(url: &str, target: &Path) -> Result<(), String> {
-    let mut curl = Command::new("curl.exe");
+    let mut curl = Command::new(curl_program());
     curl.args(["-L", "--fail", "--retry", "3", "-o"])
         .arg(target)
         .arg(url);
@@ -281,10 +289,13 @@ fn find_7zr(app: &tauri::AppHandle) -> Option<PathBuf> {
     let resource_root = app.path().resource_dir().ok()?;
     let mut candidates = vec![
         resource_root.join("7zr.exe"),
+        resource_root.join("7zr"),
         resource_root.join("resources").join("7zr.exe"),
+        resource_root.join("resources").join("7zr"),
     ];
     if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|v| v.to_path_buf())) {
         candidates.push(exe_dir.join("7zr.exe"));
+        candidates.push(exe_dir.join("7zr"));
     }
     candidates.into_iter().find(|p| p.exists())
 }

@@ -43,7 +43,7 @@ import training as training_runner
 import uvr5 as uvr5_engine
 from real_engine import RealEngine
 
-APP_VERSION = "0.1.1"
+APP_VERSION = "0.1.2"
 TOKEN = ""
 DATA_DIR = Path.cwd() / ".data"
 DB_PATH = DATA_DIR / "voice_smith.db"
@@ -162,7 +162,7 @@ def init_db() -> None:
             conn.execute("ALTER TABLE jobs ADD COLUMN batch_id TEXT")
         conn.execute(
             "INSERT OR IGNORE INTO voices(id,name,type,status,created_at) VALUES(?,?,?,?,?)",
-            ("demo_edge", "示例音色（Mock）", "free", "ready", now_iso()),
+            ("demo_edge", "绀轰緥闊宠壊锛圡ock锛?, "free", "ready", now_iso()),
         )
         conn.execute(
             "UPDATE trainings SET status='failed', detail='engine restarted', finished_at=? "
@@ -184,12 +184,12 @@ def init_db() -> None:
                 """,
                 (
                     "demo_hui",
-                    "示例音色（Huihui 参考）",
+                    "绀轰緥闊宠壊锛圚uihui 鍙傝€冿級",
                     "quick",
                     "ready",
                     now_iso(),
                     str(ref_file),
-                    "先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。",
+                    "鍏堝笣鍒涗笟鏈崐鑰屼腑閬撳穿娈傦紝浠婂ぉ涓嬩笁鍒嗭紝鐩婂窞鐤插紛锛屾璇氬嵄鎬ュ瓨浜′箣绉嬩篃銆?,
                     "zh",
                     "zh",
                     "v4",
@@ -254,7 +254,7 @@ def create_quick_voice(
             """,
             (
                 voice_id,
-                name.strip() or "快速音色",
+                name.strip() or "蹇€熼煶鑹?,
                 "quick",
                 "ready",
                 now_iso(),
@@ -372,7 +372,7 @@ def register_trained_voice(
             """,
             (
                 voice_id,
-                f"{record.get('exp_name') or '微调'}（微调）",
+                f"{record.get('exp_name') or '寰皟'}锛堝井璋冿級",
                 "trained",
                 "ready",
                 now_iso(),
@@ -699,10 +699,10 @@ def doctor() -> dict[str, Any]:
     py = sys.version_info
     py_ok = (3, 10) <= (py.major, py.minor) <= (3, 12)
     checks.append({
-        "id": "python", "name": "Python 版本",
+        "id": "python", "name": "Python 鐗堟湰",
         "status": "pass" if py_ok else "warn",
         "detail": f"{py.major}.{py.minor}.{py.micro}",
-        "fix": "" if py_ok else "GPT-SoVITS 推荐 Python 3.10–3.12；请切换 sidecar 运行时",
+        "fix": "" if py_ok else "GPT-SoVITS 鎺ㄨ崘 Python 3.10鈥?.12锛涜鍒囨崲 sidecar 杩愯鏃?,
     })
 
     torch_ok = False
@@ -719,18 +719,18 @@ def doctor() -> dict[str, Any]:
             "id": "cuda", "name": "CUDA",
             "status": "pass" if cuda_ok else "fail",
             "detail": torch.version.cuda or "not available",
-            "fix": "" if cuda_ok else "妫€鏌?NVIDIA 驱动/CUDA wheel",
+            "fix": "" if cuda_ok else "濡偓閺?NVIDIA 椹卞姩/CUDA wheel",
         })
     except Exception as exc:  # noqa: BLE001
         checks.append({
             "id": "torch", "name": "PyTorch",
             "status": "fail", "detail": str(exc),
-            "fix": "安装与 CUDA 匹配的 torch/torchaudio",
+            "fix": "瀹夎涓?CUDA 鍖归厤鐨?torch/torchaudio",
         })
         checks.append({
             "id": "cuda", "name": "CUDA",
-            "status": "fail", "detail": "torch 未安装，无法检测",
-            "fix": "先安装 torch",
+            "status": "fail", "detail": "torch 鏈畨瑁咃紝鏃犳硶妫€娴?,
+            "fix": "鍏堝畨瑁?torch",
         })
 
     try:
@@ -743,13 +743,13 @@ def doctor() -> dict[str, Any]:
             "id": "gpu", "name": "GPU",
             "status": "pass" if out.returncode == 0 else "fail",
             "detail": detail,
-            "fix": "" if out.returncode == 0 else "安装/更新 NVIDIA 驱动",
+            "fix": "" if out.returncode == 0 else "瀹夎/鏇存柊 NVIDIA 椹卞姩",
         })
     except Exception as exc:  # noqa: BLE001
         checks.append({
             "id": "gpu", "name": "GPU",
             "status": "fail", "detail": str(exc),
-            "fix": "安装 NVIDIA 椹卞姩骞剁‘淇?nvidia-smi 可用",
+            "fix": "瀹夎 NVIDIA 妞瑰崬濮╅獮鍓佲€樻穱?nvidia-smi 鍙敤",
         })
 
     ffmpeg = shutil.which("ffmpeg")
@@ -765,22 +765,22 @@ def doctor() -> dict[str, Any]:
     checks.append({
         "id": "ffmpeg", "name": "ffmpeg",
         "status": "pass" if ffmpeg else "fail",
-        "fix": "" if ffmpeg else "将 ffmpeg.exe/ffprobe.exe 放入应用目录或 PATH",
         "fix": "" if ffmpeg else "灏?ffmpeg.exe/ffprobe.exe 鏀惧叆搴旂敤鐩綍鎴?PATH",
+        "fix": "" if ffmpeg else "鐏?ffmpeg.exe/ffprobe.exe 閺€鎯у弳鎼存梻鏁ら惄顔肩秿閹?PATH",
     })
 
     try:
         free_gb = shutil.disk_usage(DATA_DIR).free / (1024 ** 3)
         checks.append({
-            "id": "disk", "name": "磁盘空间",
+            "id": "disk", "name": "纾佺洏绌洪棿",
             "status": "pass" if free_gb >= 20 else "warn",
             "detail": f"{free_gb:.1f} GB free",
-            "fix": "" if free_gb >= 20 else "建议预留 20GB 以上",
+            "fix": "" if free_gb >= 20 else "寤鸿棰勭暀 20GB 浠ヤ笂",
         })
     except Exception as exc:  # noqa: BLE001
         checks.append({
-            "id": "disk", "name": "磁盘空间",
-            "status": "fail", "detail": str(exc), "fix": "检查数据目录权限",
+            "id": "disk", "name": "纾佺洏绌洪棿",
+            "status": "fail", "detail": str(exc), "fix": "妫€鏌ユ暟鎹洰褰曟潈闄?,
         })
 
     asset_state = asset_store.list_assets()
@@ -788,18 +788,18 @@ def doctor() -> dict[str, Any]:
     frontend_ids = ["bert", "hubert", "g2pw"]
     missing_frontend = [i for i in frontend_ids if not by_id.get(i, {}).get("present")]
     checks.append({
-        "id": "text_frontend", "name": "文本前端（BERT/HuBERT/G2PW）",
+        "id": "text_frontend", "name": "鏂囨湰鍓嶇锛圔ERT/HuBERT/G2PW锛?,
         "status": "pass" if not missing_frontend else "warn",
-        "detail": "已就绪" if not missing_frontend else "缺少：" + ", ".join(missing_frontend),
-        "fix": "" if not missing_frontend else "在模型资产页导入/下载 BERT、HuBERT、G2PWModel",
+        "detail": "宸插氨缁? if not missing_frontend else "缂哄皯锛? + ", ".join(missing_frontend),
+        "fix": "" if not missing_frontend else "鍦ㄦā鍨嬭祫浜ч〉瀵煎叆/涓嬭浇 BERT銆丠uBERT銆丟2PWModel",
     })
     weight_ids = ["gpt", "sovits", "v4_vocoder", "sv"]
     missing_weights = [i for i in weight_ids if not by_id.get(i, {}).get("present")]
     checks.append({
-        "id": "weights", "name": "GPT/SoVITS/SV 权重",
+        "id": "weights", "name": "GPT/SoVITS/SV 鏉冮噸",
         "status": "pass" if not missing_weights else "warn",
-        "detail": "已就绪" if not missing_weights else "缺少：" + ", ".join(missing_weights),
-        "fix": "" if not missing_weights else "在模型资产页导入 s1v3/s2Gv4/vocoder.pth/SV 权重",
+        "detail": "宸插氨缁? if not missing_weights else "缂哄皯锛? + ", ".join(missing_weights),
+        "fix": "" if not missing_weights else "鍦ㄦā鍨嬭祫浜ч〉瀵煎叆 s1v3/s2Gv4/vocoder.pth/SV 鏉冮噸",
     })
 
     counts = {"pass": 0, "warn": 0, "fail": 0}
@@ -911,7 +911,7 @@ def create_training_record(req: TrainingRequest) -> dict[str, Any]:
             INSERT INTO trainings(id,request_id,exp_name,dataset_list,status,stage,progress,detail,log_path,created_at)
             VALUES(?,?,?,?,?,?,?,?,?,?)
             """,
-            (training_id, req.request_id, req.exp_name, req.dataset_list, "queued", "queued", 0, "排队", str(log_path), now_iso()),
+            (training_id, req.request_id, req.exp_name, req.dataset_list, "queued", "queued", 0, "鎺掗槦", str(log_path), now_iso()),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM trainings WHERE id = ?", (training_id,)).fetchone()
@@ -1102,7 +1102,7 @@ def training_cancel(training_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="training not found")
     if record["status"] in {"succeeded", "failed", "cancelled"}:
         return record
-    update_training(training_id, status="cancelling", detail="正在取消")
+    update_training(training_id, status="cancelling", detail="姝ｅ湪鍙栨秷")
     training_runner.request_cancel(training_id)
     return get_training(training_id) or record
 
