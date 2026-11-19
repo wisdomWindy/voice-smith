@@ -1,4 +1,4 @@
-# Logs
+﻿# Logs
 logs
 *.log
 npm-debug.log*
@@ -155,3 +155,14 @@ vite.config.ts.timestamp-*
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+
+# VoiceSmith local data / runtimes
+.data/
+sidecar/.venv/
+.scaffold/
+src-tauri/target/
+engine/
+sidecar/voicesmith-engine/
+outputs/
+*.7z
+

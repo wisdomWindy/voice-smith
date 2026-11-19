@@ -1,0 +1,48 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v prefix'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  thin-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build thin app
+        run: pnpm tauri build --no-bundle
+      - name: Build thin installer
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.version }}' } else { '${{ github.ref_name }}'.TrimStart('v') }
+          $out = "$PWD\dist-assets"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "scripts\voicesmith.iss" "/DReleaseDir=$PWD\src-tauri\target\release" "/DOutputDir=$out" "/DMyAppVersion=$version"
+          "VERSION=$version" | Out-File -Append $env:GITHUB_ENV
+      - name: Publish thin installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v$env:VERSION" "dist-assets\VoiceSmith-$env:VERSION-Setup.exe" --title "VoiceSmith $env:VERSION" --notes "Thin installer. Runtime/assets packs are attached by the self-hosted pack job." --generate-notes

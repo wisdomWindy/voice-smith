@@ -1,0 +1,41 @@
+request_id: intent_7c4a9e2b6d1f8053
+product: GPT-SoVITS 桌面 TTS 工坊
+form: windows_desktop
+stack:
+  shell: tauri2
+  frontend: vue3_typescript_vite
+  engine: python_sidecar_fastapi
+  ml: gpt_sovits
+in:
+  - 安装器与内置运行时
+  - doctor 八项
+  - 模型资产
+  - 零样本与微调
+  - 单条与批量推理
+  - 参考音频情绪
+  - 导出与历史
+  - 任务中心
+  - 本地 SQLite
+  - 零遥测
+out:
+  - 云端服务
+  - 账号与计费
+  - SVC
+  - 实时对话 TTS
+  - 移动端与 macOS/Linux 首发
+  - 公开分享/社区
+  - 内容审核/名人声纹/授权审核
+hardware:
+  inference_min: "GTX 1660 6GB"
+  training_min: "RTX 3060 12GB"
+  cpu_fallback: inference_only
+  os: "Windows 10 22H2 / Windows 11 x64"
+  disk: "20GB+"
+model_versions:
+  - v2
+  - v2Pro
+  - v2ProPlus
+  - v3
+  - v4
+  - v5
+default_model: v2Pro

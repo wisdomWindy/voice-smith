@@ -1,0 +1,14 @@
+{
+  "requestId": "intent_7c4a9e2b6d1f8053",
+  "title": "GPT-SoVITS 桌面 TTS 工坊",
+  "stage": "execute",
+  "status": "v4_migration",
+  "approved": {
+    "prd": "v3.0-v4-default",
+    "spec": true,
+    "plan": true
+  },
+  "currentMilestone": "Offline asset pack + first-run downloader implemented",
+  "updatedAt": "2026-11-19T11:55:00.000Z",
+  "notes": "V4 默认；2.15GB 主安装器含离线资产下载弹窗/7zr；离线包 3.02GiB sha256 35bf...b8，下载/校验/解压/安装本地 HTTP 验证通过。review 仍不通过：干净 VM/断网/RTF/长稳/回滚/矩阵。"
+}

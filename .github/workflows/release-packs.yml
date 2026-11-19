@@ -1,0 +1,33 @@
+name: release-packs
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v prefix'
+        required: true
+      skip_build:
+        description: 'Skip thin app/installer build'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Requires a self-hosted Windows runner with:
+#   - Python 3.11 + torch/cu128 venv able to rebuild the sidecar
+#   - GPT-SoVITS engine + V4 weights + faster-whisper cache
+#   - 7zr.exe and Inno Setup 6
+jobs:
+  packs:
+    runs-on: [self-hosted, Windows, X64, voicesmith]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish runtime + assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $args = @('-Version', '${{ inputs.version }}')
+          if ('${{ inputs.skip_build }}' -eq 'true') { $args += '-SkipBuild' }
+          & .\scripts\publish-release.ps1 @args
