@@ -164,19 +164,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify assets and build latest.json
+      - name: Verify assets and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "v$VERSION" --repo "${{ github.repository }}" -D all
-          test -f "VoiceSmith-${VERSION}-windows-x64-setup.exe"
-          test -f "VoiceSmith-${VERSION}-macos-intel.dmg"
-          test -f "VoiceSmith-${VERSION}-macos-apple-silicon.dmg"
-          test -f "runtime-windows-x64-manifest.json"
-          test -f "runtime-macos-intel-manifest.json"
-          test -f "runtime-macos-arm64-manifest.json"
-          test -f "assets-windows-x64-manifest.json"
-          test -f "assets-macos-intel-manifest.json"
-          test -f "assets-macos-arm64-manifest.json"
+          NAMES=$(gh release view "v$VERSION" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
+          for name in \
+            "VoiceSmith-${VERSION}-windows-x64-setup.exe" \
+            "VoiceSmith-${VERSION}-macos-intel.dmg" \
+            "VoiceSmith-${VERSION}-macos-apple-silicon.dmg" \
+            "runtime-windows-x64-manifest.json" \
+            "runtime-macos-intel-manifest.json" \
+            "runtime-macos-arm64-manifest.json" \
+            "assets-windows-x64-manifest.json" \
+            "assets-macos-intel-manifest.json" \
+            "assets-macos-arm64-manifest.json"; do
+            echo "$NAMES" | grep -qx "$name" || { echo "missing $name"; exit 1; }
+          done
           gh release edit "v$VERSION" --repo "${{ github.repository }}" --draft=false --latest
 
