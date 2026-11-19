@@ -3,9 +3,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useEngineStore } from './stores/engine'
 import type { AssetPackStatus } from './lib/engine'
-import { ASSETS_MANIFEST_URL, RUNTIME_MANIFEST_URL } from './lib/release'
+import { platformTag } from './lib/engine'
+import { assetsManifest, runtimeManifest } from './lib/release'
 
 const engine = useEngineStore()
+const platform = ref('windows-x64')
 const showTerms = ref(false)
 const accepting = ref(false)
 const showAssets = ref(false)
@@ -20,7 +22,7 @@ async function installRuntimePack() {
   runtimeBusy.value = true
   runtimeError.value = ''
   try {
-    const ok = await engine.installRuntimePack(RUNTIME_MANIFEST_URL)
+    const ok = await engine.installRuntimePack(runtimeManifest(platform.value))
     if (ok) {
       showRuntime.value = false
       await checkAssets()
@@ -48,7 +50,7 @@ async function startPack() {
   if (!engine.client) return
   packBusy.value = true
   try {
-    pack.value = await engine.client.installAssetPack(ASSETS_MANIFEST_URL)
+    pack.value = await engine.client.installAssetPack(assetsManifest(platform.value))
     window.clearInterval(packTimer)
     packTimer = window.setInterval(async () => {
       if (!engine.client) return
@@ -102,7 +104,12 @@ async function acceptTerms() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    platform.value = await platformTag()
+  } catch {
+    platform.value = 'windows-x64'
+  }
   if (engine.status === 'starting' && !engine.info) void engine.init()
 })
 
@@ -185,7 +192,7 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要下载 VoiceSmith 运行时（Python + PyTorch/CUDA，约 2–3GB 压缩包）。安装后还需下载离线资产包。
       </p>
-      <p class="muted small">下载地址：GitHub Release v0.1.0（固定，无需填写）。</p>
+      <p class="muted small">下载地址：GitHub Release v0.1.3（固定，无需填写）。</p>
       <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
       <button class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
         {{ runtimeBusy ? '下载安装中…' : '下载并安装运行时' }}
@@ -216,7 +223,7 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要 GPT-SoVITS 引擎、编码器、声码器与预训练权重。下载离线资产包后会自动校验 sha256 并安装。
       </p>
-      <p class="muted small">下载地址：GitHub Release v0.1.0（固定，无需填写）。</p>
+      <p class="muted small">下载地址：GitHub Release v0.1.3（固定，无需填写）。</p>
       <div v-if="pack && pack.installing" class="job-block">
         <div class="row space-between">
           <span>{{ pack.message || pack.stage }}</span>

@@ -205,6 +205,12 @@ export async function runtimeStatus(): Promise<RuntimeStatus> {
   return await invoke<RuntimeStatus>('runtime_status')
 }
 
+export async function platformTag(): Promise<string> {
+  if (!isTauri()) return 'windows-x64'
+  const { invoke } = await import('@tauri-apps/api/core')
+  return await invoke<string>('platform_tag')
+}
+
 export async function installRuntime(url: string, sha256 = ''): Promise<EngineInfo> {
   if (!isTauri()) return getEngineInfo()
   const { invoke } = await import('@tauri-apps/api/core')

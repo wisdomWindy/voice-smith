@@ -94,15 +94,16 @@ fn find_packaged_engine(resource_root: &PathBuf, dev_root: &PathBuf, data_dir: &
             return Some(path);
         }
     }
+    let exe_name = engine_exe_name();
     let candidates = [
-        data_dir.join("runtime").join("voicesmith-engine.exe"),
-        resource_root.join("voicesmith-engine").join("voicesmith-engine.exe"),
-        resource_root.join("resources").join("voicesmith-engine").join("voicesmith-engine.exe"),
-        resource_root.join("engine").join("voicesmith-engine").join("voicesmith-engine.exe"),
+        data_dir.join("runtime").join(exe_name),
+        resource_root.join("voicesmith-engine").join(exe_name),
+        resource_root.join("resources").join("voicesmith-engine").join(exe_name),
+        resource_root.join("engine").join("voicesmith-engine").join(exe_name),
     ];
     let mut candidates = candidates.to_vec();
     if cfg!(debug_assertions) {
-        candidates.push(dev_root.join("sidecar").join("voicesmith-engine").join("voicesmith-engine.exe"));
+        candidates.push(dev_root.join("sidecar").join("voicesmith-engine").join(exe_name));
     }
     if let Some(exe_dir) = std::env::current_exe().ok().and_then(|path| path.parent().map(|p| p.to_path_buf())) {
         for candidate in [
@@ -315,8 +316,21 @@ fn sha256_file(path: &Path) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn platform_tag() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows-x64"
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        "macos-arm64"
+    } else if cfg!(target_os = "macos") {
+        "macos-intel"
+    } else {
+        "unsupported"
+    }
+}
+
+#[tauri::command]
 fn runtime_status(app: tauri::AppHandle) -> RuntimeStatus {
-    let path = runtime_dir(&app).join("voicesmith-engine.exe");
+    let path = runtime_dir(&app).join(engine_exe_name());
     RuntimeStatus {
         installed: path.exists(),
         path: path.to_string_lossy().to_string(),
@@ -413,6 +427,14 @@ fn pick_training_file() -> Option<String> {
         .map(|path| path.to_string_lossy().to_string())
 }
 
+fn engine_exe_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "voicesmith-engine.exe"
+    } else {
+        "voicesmith-engine"
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -421,6 +443,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_engine_info,
             restart_engine,
+            platform_tag,
             runtime_status,
             install_runtime,
             pick_audio_file,
