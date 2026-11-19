@@ -45,4 +45,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v$env:VERSION" "dist-assets\VoiceSmith-$env:VERSION-Setup.exe" --title "VoiceSmith $env:VERSION" --notes "Thin installer. Runtime/assets packs are attached by the self-hosted pack job." --generate-notes
+          $setup = "dist-assets\VoiceSmith-$env:VERSION-Setup.exe"
+          gh release view "v$env:VERSION" --repo "${{ github.repository }}" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "v$env:VERSION" $setup --repo "${{ github.repository }}" --clobber
+          } else {
+            gh release create "v$env:VERSION" $setup --repo "${{ github.repository }}" --title "VoiceSmith $env:VERSION" --notes "Thin installer. Runtime/assets packs are attached by the self-hosted pack job." --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
