@@ -38,7 +38,9 @@
 8. **G1/G5/G6**：无训练满载 UI P95、24h 浸泡、中文/空格路径训练。
 9. **H2/H3/H6**：无断网全流程、DLL 扫描、上一版本降级。
 10. **I1**：需求-验收矩阵覆盖率未计算。
-11. **A2 安装包内许可证**：SBOM/Notice 已加入安装器，但未逐项核对 Tauri/Vue/Python 许可证文本。
+11. **GitHub Release 未发布**：runtime 2.34GiB/assets 3.02GiB 超过 GitHub 单资产 2GB 限制，需拆分 part + manifest；gh 未认证。
+
+12. **A2 安装包内许可证**：SBOM/Notice 已加入安装器，但未逐项核对 Tauri/Vue/Python 许可证文本。
 
 ## 交付物现状
 

@@ -186,7 +186,17 @@ M0（Tauri/Vue/sidecar/mock）、M1（资产/doctor/快速音色）、M2（V2Pro
 - 下载/校验/7zr 解压/安装已用本地 HTTP 端到端验证：`done`，安装后 3.48GB，`s2Gv4.pth` 与 faster-whisper 缓存存在。
 - 详见 `docs/release/offline-assets.md`。
 
-## 17. 已知问题
+## 17. 三段式分发（Thin Setup + Runtime + Assets）
+
+- 主安装器：**3.5MB**，仅 UI + 7zr + licenses；不再含 PyTorch sidecar。
+- 运行时包：`VoiceSmith-Runtime.7z` **2.34GiB**，sha256 `16830e39...74a2c474`。
+- 离线资产包：`VoiceSmith-Offline-Assets.7z` **3.02GiB**，sha256 `35bfe732...68b8`。
+- 首启 `runtime_missing` 弹窗；下载/校验/7zr 解压到 `%APPDATA%\...\runtime`，重启 sidecar。
+- 实测：thin 安装 → 运行时弹窗 → 本地 HTTP 安装 → `gpt-sovits` 就绪 → V4 推理成功；无 console 窗口。
+- 代码已推送到 `https://github.com/wisdomWindy/voice-smith`（main）。
+- 未完成：GitHub Release 单资产上限 2GB，runtime/assets 需拆分 part + manifest；`gh` 未认证，尚未创建 Release。
+
+## 18. 已知问题
 
 - 首次真实推理需加载模型（约 10–15 秒）；训练任务需要独占 GPU，当前未与推理任务做显存互斥。
 - 真实推理/训练依赖当前机器的 C 盘资产目录；安装器尚未把这些资产纳入发布流程。
