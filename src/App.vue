@@ -3,27 +3,24 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useEngineStore } from './stores/engine'
 import type { AssetPackStatus } from './lib/engine'
+import { ASSETS_MANIFEST_URL, RUNTIME_MANIFEST_URL } from './lib/release'
 
 const engine = useEngineStore()
 const showTerms = ref(false)
 const accepting = ref(false)
 const showAssets = ref(false)
 const pack = ref<AssetPackStatus | null>(null)
-const packUrl = ref('')
 const packBusy = ref(false)
 let packTimer: number | undefined
 const showRuntime = ref(false)
-const runtimeUrl = ref('')
-const runtimeSha = ref('')
 const runtimeBusy = ref(false)
 const runtimeError = ref('')
 
 async function installRuntimePack() {
-  if (!runtimeUrl.value.trim()) return
   runtimeBusy.value = true
   runtimeError.value = ''
   try {
-    const ok = await engine.installRuntimePack(runtimeUrl.value.trim(), runtimeSha.value.trim())
+    const ok = await engine.installRuntimePack(RUNTIME_MANIFEST_URL)
     if (ok) {
       showRuntime.value = false
       await checkAssets()
@@ -41,7 +38,6 @@ async function checkAssets() {
     const report = await engine.client.assets()
     const state = await engine.client.assetPack()
     pack.value = state
-    if (!packUrl.value && state.url) packUrl.value = state.url
     showAssets.value = !report.ready && !state.installed
   } catch {
     showAssets.value = false
@@ -49,10 +45,10 @@ async function checkAssets() {
 }
 
 async function startPack() {
-  if (!engine.client || !packUrl.value.trim()) return
+  if (!engine.client) return
   packBusy.value = true
   try {
-    pack.value = await engine.client.installAssetPack(packUrl.value.trim())
+    pack.value = await engine.client.installAssetPack(ASSETS_MANIFEST_URL)
     window.clearInterval(packTimer)
     packTimer = window.setInterval(async () => {
       if (!engine.client) return
@@ -189,16 +185,9 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要下载 VoiceSmith 运行时（Python + PyTorch/CUDA，约 2–3GB 压缩包）。安装后还需下载离线资产包。
       </p>
-      <label class="field">
-        <span>运行时包地址</span>
-        <input v-model="runtimeUrl" class="input" placeholder="https://github.com/wisdomWindy/voice-smith/releases/download/v0.1.0/runtime-manifest.json" />
-      </label>
-      <label class="field">
-        <span>SHA256（可选）</span>
-        <input v-model="runtimeSha" class="input" placeholder="运行时包 sha256" />
-      </label>
+      <p class="muted small">下载地址：GitHub Release v0.1.0（固定，无需填写）。</p>
       <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
-      <button class="button primary" :disabled="runtimeBusy || !runtimeUrl.trim()" @click="installRuntimePack">
+      <button class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
         {{ runtimeBusy ? '下载安装中…' : '下载并安装运行时' }}
       </button>
     </div>
@@ -227,10 +216,7 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要 GPT-SoVITS 引擎、编码器、声码器与预训练权重。下载离线资产包后会自动校验 sha256 并安装。
       </p>
-      <label class="field">
-        <span>资产包地址</span>
-        <input v-model="packUrl" class="input" placeholder="https://github.com/wisdomWindy/voice-smith/releases/download/v0.1.0/assets-manifest.json" />
-      </label>
+      <p class="muted small">下载地址：GitHub Release v0.1.0（固定，无需填写）。</p>
       <div v-if="pack && pack.installing" class="job-block">
         <div class="row space-between">
           <span>{{ pack.message || pack.stage }}</span>
@@ -240,7 +226,7 @@ const statusDetail = computed(() => {
       </div>
       <div v-if="pack?.error" class="inline-error">{{ pack.error }}</div>
       <div class="row gap">
-        <button class="button primary" :disabled="packBusy || !packUrl.trim()" @click="startPack">
+        <button class="button primary" :disabled="packBusy" @click="startPack">
           {{ packBusy ? (pack?.installing ? '安装中…' : '启动中…') : '下载并安装离线资产' }}
         </button>
         <button class="button ghost" :disabled="packBusy" @click="showAssets = false">稍后</button>
