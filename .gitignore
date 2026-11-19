@@ -169,3 +169,6 @@ outputs/
 
 dist-assets/
 
+
+__pycache__/
+*.pyc
