@@ -1,8 +1,8 @@
 {
   "name": "voice-smith",
   "private": true,
-  "version": "0.1.2",
-  "description": "GPT-SoVITS 妗岄潰 TTS 宸ュ潑锛歍auri 2 + Vue 3 + Python sidecar",
+  "version": "0.1.4",
+  "description": "GPT-SoVITS 濡楀矂娼?TTS 瀹搞儱娼戦敍姝峚uri 2 + Vue 3 + Python sidecar",
   "type": "module",
   "scripts": {
     "dev": "vite",

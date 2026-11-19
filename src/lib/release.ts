@@ -1,4 +1,4 @@
-export const RELEASE_TAG = 'v0.1.3'
+export const RELEASE_TAG = 'v0.1.4'
 export const RELEASE_BASE = `https://github.com/wisdomWindy/voice-smith/releases/download/${RELEASE_TAG}`
 
 export const RUNTIME_MANIFESTS: Record<string, string> = {
