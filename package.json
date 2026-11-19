@@ -1,8 +1,8 @@
-{
+﻿{
   "name": "voice-smith",
   "private": true,
-  "version": "0.1.0",
-  "description": "GPT-SoVITS 桌面 TTS 工坊：Tauri 2 + Vue 3 + Python sidecar",
+  "version": "0.1.1",
+  "description": "GPT-SoVITS 妗岄潰 TTS 宸ュ潑锛歍auri 2 + Vue 3 + Python sidecar",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,3 +25,4 @@
     "vue-tsc": "^3.3.5"
   }
 }
+
