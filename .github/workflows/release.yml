@@ -1,4 +1,4 @@
-﻿name: release
+name: release
 
 on:
   push:
@@ -47,7 +47,11 @@ jobs:
           > Windows 瀹夎鍣ㄩ娆″惎鍔ㄨ嚜鍔ㄤ笅杞?Windows runtime/assets銆?          > macOS 瀹夎鍖呭凡鏋勫缓锛沵acOS runtime/assets 浠嶅緟鍗曠嫭鍙戝竷銆?          EOF
           gh release view "v$V" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create "v$V" --repo "${{ github.repository }}" --title "VoiceSmith $V" --notes-file /tmp/notes.md
-          gh release edit "v$V" --repo "${{ github.repository }}" --notes-file /tmp/notes.md
+          if [ -f "docs/releases/v$V.md" ]; then
+            gh release edit "v$V" --repo "${{ github.repository }}" --notes-file "docs/releases/v$V.md"
+          else
+            gh release edit "v$V" --repo "${{ github.repository }}" --notes-file /tmp/notes.md
+          fi
 
   installer:
     needs: prepare
