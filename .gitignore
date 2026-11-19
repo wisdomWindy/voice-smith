@@ -166,3 +166,6 @@ sidecar/voicesmith-engine/
 outputs/
 *.7z
 
+
+dist-assets/
+
