@@ -196,7 +196,15 @@ M0（Tauri/Vue/sidecar/mock）、M1（资产/doctor/快速音色）、M2（V2Pro
 - 代码已推送到 `https://github.com/wisdomWindy/voice-smith`（main）。
 - 未完成：GitHub Release 单资产上限 2GB，runtime/assets 需拆分 part + manifest；`gh` 未认证，尚未创建 Release。
 
-## 18. 已知问题
+## 18. Huihui 噪音修复（2026-11-19）
+
+- 现象：V4 Huihui 输出峰值 1.0、RMS 0.94、88% 采样削波，听感为强噪音。
+- 根因：上游 `TTS.audio_postprocess` 返回 **int16**；`gpt_worker`/`gpt_tts` 直接 `astype(float32)`，未除以 32768，全部溢出削波。
+- 修复：整数音频 `astype(float32)/32768.0`，浮点保持原值。
+- 复测：48k/3.44s，峰值 **0.631**、RMS **0.054**、削波 **0**。
+- 已重编 runtime pack 并上传：sha256 `785b9350af04ad5971c1a3a8f87a930b9429c4c52a97562988264785ecf4a83c`。
+
+## 19. 已知问题
 
 - 首次真实推理需加载模型（约 10–15 秒）；训练任务需要独占 GPU，当前未与推理任务做显存互斥。
 - 真实推理/训练依赖当前机器的 C 盘资产目录；安装器尚未把这些资产纳入发布流程。

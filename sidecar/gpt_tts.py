@@ -91,7 +91,12 @@ from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
     sample_rate = 32000
     for sr, audio in tts.run(req):
         sample_rate = int(sr)
-        chunks.append(np.asarray(audio, dtype=np.float32).reshape(-1))
+        arr = np.asarray(audio)
+        if np.issubdtype(arr.dtype, np.integer):
+            arr = arr.astype(np.float32) / 32768.0
+        else:
+            arr = arr.astype(np.float32)
+        chunks.append(arr.reshape(-1))
     if not chunks:
         raise RuntimeError("GPT-SoVITS produced no audio")
     sf.write(str(out), np.concatenate(chunks), sample_rate)

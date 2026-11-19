@@ -8,7 +8,7 @@
     "spec": true,
     "plan": true
   },
-  "currentMilestone": "v0.1.0 Release published: thin setup + runtime/assets parts",
-  "updatedAt": "2026-11-19T13:00:00.000Z",
-  "notes": "Thin 3.5MB setup；Release v0.1.0 已发布：runtime 2 parts、assets 2 parts、manifests；首启下载器已实现。仍需验证 GitHub 实际下载全链与 review 项。"
+  "currentMilestone": "Huihui noise fixed (int16 scaling); release runtime updated",
+  "updatedAt": "2026-11-19T13:45:00.000Z",
+  "notes": "V4 TTS 返回 int16，worker 未除 32768 导致 88% 削波；修复后 peak .631/rms .054/clip 0，runtime sha 785b... 已上传 v0.1.0。"
 }

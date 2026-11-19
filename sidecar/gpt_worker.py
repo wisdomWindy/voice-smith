@@ -118,7 +118,12 @@ def main() -> int:
             with contextlib.redirect_stdout(sys.stderr):
                 for sample_rate, audio in tts.run(run_req):
                     sr = int(sample_rate)
-                    chunks.append(np.asarray(audio, dtype=np.float32).reshape(-1))
+                    arr = np.asarray(audio)
+                    if np.issubdtype(arr.dtype, np.integer):
+                        arr = arr.astype(np.float32) / 32768.0
+                    else:
+                        arr = arr.astype(np.float32)
+                    chunks.append(arr.reshape(-1))
                 if not chunks:
                     raise RuntimeError("GPT-SoVITS produced no audio")
                 sf.write(str(out), np.concatenate(chunks), sr)
