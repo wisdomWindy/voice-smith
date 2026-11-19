@@ -1,4 +1,4 @@
-name: release
+﻿name: release
 
 on:
   push:
@@ -36,17 +36,15 @@ jobs:
           # VoiceSmith $V
 
           ## Windows 10/11 x64
-          - [下载 Windows NSIS 安装器]($BASE/VoiceSmith-$V-windows-x64-setup.exe)
+          - [涓嬭浇 Windows NSIS 瀹夎鍣╙($BASE/VoiceSmith-$V-windows-x64-setup.exe)
 
           ## macOS Intel
-          - [下载 macOS Intel DMG]($BASE/VoiceSmith-$V-macos-intel.dmg)
+          - [涓嬭浇 macOS Intel DMG]($BASE/VoiceSmith-$V-macos-intel.dmg)
 
           ## macOS Apple Silicon
-          - [下载 macOS Apple Silicon DMG]($BASE/VoiceSmith-$V-macos-apple-silicon.dmg)
+          - [涓嬭浇 macOS Apple Silicon DMG]($BASE/VoiceSmith-$V-macos-apple-silicon.dmg)
 
-          > Windows 安装器首次启动自动下载 Windows runtime/assets。
-          > macOS 安装包已构建；macOS runtime/assets 仍待单独发布。
-          EOF
+          > Windows 瀹夎鍣ㄩ娆″惎鍔ㄨ嚜鍔ㄤ笅杞?Windows runtime/assets銆?          > macOS 瀹夎鍖呭凡鏋勫缓锛沵acOS runtime/assets 浠嶅緟鍗曠嫭鍙戝竷銆?          EOF
           gh release view "v$V" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create "v$V" --repo "${{ github.repository }}" --title "VoiceSmith $V" --notes-file /tmp/notes.md
           gh release edit "v$V" --repo "${{ github.repository }}" --notes-file /tmp/notes.md
@@ -60,10 +58,10 @@ jobs:
           - os: windows-latest
             bundle: nsis
             platform: windows-x64
-          - os: macos-13
+          - os: macos-15-intel
             bundle: dmg
             platform: macos-intel
-          - os: macos-14
+          - os: macos-15
             bundle: dmg
             platform: macos-apple-silicon
     runs-on: ${{ matrix.os }}
@@ -97,3 +95,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "v${{ needs.prepare.outputs.version }}" dist-assets/* --repo "${{ github.repository }}" --clobber
+
