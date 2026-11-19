@@ -70,7 +70,7 @@ jobs:
           fi
           find src-tauri/target/release/bundle -name '*.sig' -exec cp {} . \;
           find src-tauri/target/release/bundle -name '*.app.tar.gz' -exec cp {} . \;
-          gh release upload "v$VERSION" VoiceSmith-* *.sig *.app.tar.gz --repo "${{ github.repository }}" --clobber
+          gh release upload "v$VERSION" VoiceSmith-* --repo "${{ github.repository }}" --clobber`n          find . -maxdepth 1 \( -name "*.sig" -o -name "*.app.tar.gz" \) -print0 | xargs -0 -r gh release upload "v$VERSION" --repo "${{ github.repository }}" --clobber
 
   runtime-windows:
     needs: prepare
@@ -90,7 +90,7 @@ jobs:
       - name: Pack and split
         shell: pwsh
         run: |
-          & "scripts\build-runtime-pack.ps1" -RuntimeDir "sidecar\dist\voicesmith-engine" -OutFile "VoiceSmith-Runtime-windows-x64.7z"
+          & "scripts\build-runtime-pack.ps1" -RuntimeDir "sidecar\dist\voicesmith-engine" -OutFile "VoiceSmith-Runtime-windows-x64.7z" -SevenZip "$PWD\sidecar\7zr.exe"
           python scripts/ci/split_pack.py VoiceSmith-Runtime-windows-x64.7z runtime-windows-x64
       - name: Upload
         shell: pwsh
