@@ -191,7 +191,7 @@ const statusDetail = computed(() => {
       </p>
       <label class="field">
         <span>运行时包地址</span>
-        <input v-model="runtimeUrl" class="input" placeholder="https://github.com/wisdomWindy/voice-smith/releases/download/v0.1.0/VoiceSmith-Runtime.7z" />
+        <input v-model="runtimeUrl" class="input" placeholder="https://github.com/wisdomWindy/voice-smith/releases/download/v0.1.0/runtime-manifest.json" />
       </label>
       <label class="field">
         <span>SHA256（可选）</span>
@@ -229,7 +229,7 @@ const statusDetail = computed(() => {
       </p>
       <label class="field">
         <span>资产包地址</span>
-        <input v-model="packUrl" class="input" placeholder="https://github.com/wisdomWindy/voice-smith/releases/download/v0.1.0/VoiceSmith-Offline-Assets.7z" />
+        <input v-model="packUrl" class="input" placeholder="https://github.com/wisdomWindy/voice-smith/releases/download/v0.1.0/assets-manifest.json" />
       </label>
       <div v-if="pack && pack.installing" class="job-block">
         <div class="row space-between">
@@ -248,3 +248,4 @@ const statusDetail = computed(() => {
     </div>
   </div>
 </template>
+

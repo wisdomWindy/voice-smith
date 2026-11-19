@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, OpenOptions};
 use std::io::Read;
@@ -238,6 +238,32 @@ struct RuntimeStatus {
     path: String,
 }
 
+#[derive(Deserialize)]
+struct PackPart {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct PackManifest {
+    #[serde(default)]
+    sha256: String,
+    parts: Vec<PackPart>,
+}
+
+fn download_url(url: &str, target: &Path) -> Result<(), String> {
+    let mut curl = Command::new("curl.exe");
+    curl.args(["-L", "--fail", "--retry", "3", "-o"])
+        .arg(target)
+        .arg(url);
+    #[cfg(target_os = "windows")]
+    curl.creation_flags(CREATE_NO_WINDOW);
+    let status = curl.status().map_err(|e| format!("curl failed: {e}"))?;
+    if !status.success() {
+        return Err(format!("download failed: {status}"));
+    }
+    Ok(())
+}
+
 fn runtime_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()
@@ -293,17 +319,30 @@ fn install_runtime(
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
     let pack = data_dir.join("runtime-pack.7z");
-    let mut curl = Command::new("curl.exe");
-    curl.args(["-L", "--fail", "--retry", "3", "-o"])
-        .arg(&pack)
-        .arg(url.trim());
-    #[cfg(target_os = "windows")]
-    curl.creation_flags(CREATE_NO_WINDOW);
-    let status = curl.status().map_err(|e| format!("curl failed: {e}"))?;
-    if !status.success() {
-        return Err(format!("runtime download failed: {status}"));
+    let mut expected = sha256.unwrap_or_default();
+    let mut urls = vec![url.trim().to_string()];
+    if url.trim().to_lowercase().ends_with(".json") {
+        let manifest_path = data_dir.join("runtime-manifest.json");
+        download_url(url.trim(), &manifest_path)?;
+        let text = fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
+        let text = text.trim_start_matches('\u{feff}');
+        let manifest: PackManifest = serde_json::from_str(text).map_err(|e| e.to_string())?;
+        if !manifest.sha256.is_empty() {
+            expected = manifest.sha256;
+        }
+        urls = manifest.parts.into_iter().map(|part| part.url).collect();
+        let _ = fs::remove_file(&manifest_path);
     }
-    if let Some(expected) = sha256.filter(|v| !v.trim().is_empty()) {
+    let mut output = fs::File::create(&pack).map_err(|e| e.to_string())?;
+    for (index, part_url) in urls.iter().enumerate() {
+        let part = data_dir.join(format!("runtime-part-{index:02}.bin"));
+        download_url(part_url, &part)?;
+        let mut input = fs::File::open(&part).map_err(|e| e.to_string())?;
+        std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+        let _ = fs::remove_file(&part);
+    }
+    drop(output);
+    if !expected.trim().is_empty() {
         let actual = sha256_file(&pack)?;
         if actual.to_lowercase() != expected.trim().to_lowercase() {
             let _ = fs::remove_file(&pack);

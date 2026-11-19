@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -87,6 +88,29 @@ def _download(url: str, target: Path) -> None:
                         message=f"{done / 1024 ** 3:.2f} / {total / 1024 ** 3:.2f} GB")
 
 
+def _download_pack(url: str, target: Path) -> str:
+    if not url.lower().endswith(".json"):
+        _download(url, target)
+        return ""
+    request = urllib.request.Request(url, headers={"User-Agent": "VoiceSmith/0.1"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        manifest = json.loads(response.read().decode("utf-8-sig"))
+    parts = manifest.get("parts") or []
+    if not parts:
+        raise ValueError("asset manifest has no parts")
+    with target.open("wb") as output:
+        for index, part in enumerate(parts):
+            part_url = str(part.get("url") or "")
+            if not part_url:
+                raise ValueError("asset manifest part has no url")
+            temp = target.with_suffix(f".part{index:02}")
+            _download(part_url, temp)
+            with temp.open("rb") as source:
+                shutil.copyfileobj(source, output)
+            temp.unlink(missing_ok=True)
+    return str(manifest.get("sha256") or "")
+
+
 def _install_from_dir(extracted: Path) -> None:
     assert _DATA is not None and _ENGINE is not None
     _update(stage="installing", progress=0.9, message="安装引擎与权重")
@@ -108,7 +132,8 @@ def _run(url: str, expected: str) -> None:
         if not url:
             raise ValueError("asset pack URL is not configured")
         _update(installing=True, progress=0.01, stage="downloading", error="", message="开始下载")
-        _download(url, pack)
+        manifest_hash = _download_pack(url, pack)
+        expected = expected or manifest_hash
         if expected:
             _update(stage="verifying", progress=0.78, message="校验 sha256")
             actual = _sha256(pack)

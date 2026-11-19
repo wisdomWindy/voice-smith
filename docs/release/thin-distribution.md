@@ -22,20 +22,20 @@ Verified locally with HTTP:
 - runtime extract -> sidecar `gpt-sovits` ready; no console window
 - runtime install + V4 inference succeeded
 
-## GitHub Release limitation
+## GitHub Release (published)
 
-GitHub Releases allow **at most 2GB per asset**. Runtime (2.34GiB) and assets (3.02GiB) cannot be uploaded as single assets.
+Release: https://github.com/wisdomWindy/voice-smith/releases/tag/v0.1.0
 
-Required next step: split each pack into <2GB parts and publish a small manifest:
+Because GitHub allows **at most 2GB per asset**, packs are split:
 
-```json
-{
-  "sha256": "<whole pack sha256>",
-  "parts": [
-    { "url": ".../VoiceSmith-Runtime.7z.part01", "size": 1200000000 },
-    { "url": ".../VoiceSmith-Runtime.7z.part02", "size": 1200000000 }
-  ]
-}
-```
+| Asset | Size |
+|---|---:|
+| `VoiceSmith-0.1.0-Setup.exe` | 3.5MB |
+| `runtime.part01` | 1.8GB |
+| `runtime.part02` | 592MB |
+| `runtime-manifest.json` | 678B |
+| `assets.part01` | 1.8GB |
+| `assets.part02` | 1.29GB |
+| `assets-manifest.json` | 675B |
 
-The downloader must download all parts, concatenate, verify the whole sha256, then extract.
+The downloader reads the manifest, downloads all parts, concatenates, verifies the whole sha256, then extracts.

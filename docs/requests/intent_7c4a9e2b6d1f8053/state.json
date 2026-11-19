@@ -8,7 +8,7 @@
     "spec": true,
     "plan": true
   },
-  "currentMilestone": "Thin 3.5MB setup + runtime modal verified; GitHub release blocked by 2GB/asset",
-  "updatedAt": "2026-11-19T12:30:00.000Z",
-  "notes": "Thin Setup 3.5MB；Runtime 2.34GiB + Assets 3.02GiB；首启运行时下载/安装/V4 推理验证。代码已推送 wisdomWindy/voice-smith。GitHub Release 需拆分 part（单资产 2GB 上限）且 gh 未认证，尚未上传 runtime/assets。"
+  "currentMilestone": "v0.1.0 Release published: thin setup + runtime/assets parts",
+  "updatedAt": "2026-11-19T13:00:00.000Z",
+  "notes": "Thin 3.5MB setup；Release v0.1.0 已发布：runtime 2 parts、assets 2 parts、manifests；首启下载器已实现。仍需验证 GitHub 实际下载全链与 review 项。"
 }
