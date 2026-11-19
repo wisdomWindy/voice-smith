@@ -40,7 +40,9 @@
 10. **I1**：需求-验收矩阵覆盖率未计算。
 11. **Release 下载全链未完整验证**：v0.1.0 已发布 2 个 runtime part + 2 个 assets part，但一次 GitHub 实际下载在 1.13GB 处中断，需重试完整安装。
 
-12. **A2 安装包内许可证**：SBOM/Notice 已加入安装器，但未逐项核对 Tauri/Vue/Python 许可证文本。
+12. **macOS 运行时/资产未发布**：macOS Intel/Apple Silicon DMG 已构建，但 runtime/assets 仍是 Windows-only。
+
+13. **A2 安装包内许可证**：SBOM/Notice 已加入安装器，但未逐项核对 Tauri/Vue/Python 许可证文本。
 
 ## 交付物现状
 

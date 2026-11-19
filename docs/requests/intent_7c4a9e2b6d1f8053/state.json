@@ -8,7 +8,7 @@
     "spec": true,
     "plan": true
   },
-  "currentMilestone": "v0.1.1 published with platform download links",
-  "updatedAt": "2026-11-19T14:40:00.000Z",
-  "notes": "v0.1.1 Release 已发布：Windows x64 Setup 3.5MB + runtime/assets parts/manifests；release notes 含直接下载链接。"
+  "currentMilestone": "v0.1.2 multi-platform installers published",
+  "updatedAt": "2026-11-19T15:35:00.000Z",
+  "notes": "v0.1.2 Release: Windows NSIS + macOS Intel/Apple Silicon DMG，Actions run 44476607986 全绿；Windows runtime/assets parts 已上传。macOS runtime/assets 仍待发布。"
 }

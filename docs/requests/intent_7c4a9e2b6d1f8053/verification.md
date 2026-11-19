@@ -211,7 +211,17 @@ M0（Tauri/Vue/sidecar/mock）、M1（资产/doctor/快速音色）、M2（V2Pro
 - 实测安装到 D:\VoiceSmith-test：sidecar 路径 D:\VoiceSmith-test\runtime\voicesmith-engine.exe，--data-dir D:\VoiceSmith-test\data，doctor 8/8，V4 推理 peak .703/rms .051/clip 0。
 - 不再使用 %APPDATA%\com.voicesmith.desktop 存放软件文件。
 
-## 20. 已知问题
+## 20. 多平台安装包（v0.1.2）
+
+- GitHub Actions 
+elease run 44476607986 全部成功。
+- Windows x64：NSIS VoiceSmith-0.1.2-windows-x64-setup.exe（209.5MB，含 WebView2 offline）。
+- macOS Intel：VoiceSmith-0.1.2-macos-intel.dmg（2.48MB）。
+- macOS Apple Silicon：VoiceSmith-0.1.2-macos-apple-silicon.dmg（2.33MB）。
+- Release：https://github.com/wisdomWindy/voice-smith/releases/tag/v0.1.2
+- 注意：macOS runtime/assets 仍是 Windows-only，mac 安装包目前只完成 app 壳；mac 运行时/权重需单独发布。
+
+## 21. 已知问题
 
 - 首次真实推理需加载模型（约 10–15 秒）；训练任务需要独占 GPU，当前未与推理任务做显存互斥。
 - 真实推理/训练依赖当前机器的 C 盘资产目录；安装器尚未把这些资产纳入发布流程。
