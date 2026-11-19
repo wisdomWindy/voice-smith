@@ -64,6 +64,16 @@ fn project_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+fn install_root() -> PathBuf {
+    if cfg!(debug_assertions) {
+        return project_root();
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.to_path_buf()))
+        .unwrap_or_else(project_root)
+}
+
 fn resolve_python(root: &PathBuf) -> PathBuf {
     if let Ok(explicit) = std::env::var("VOICE_SMITH_PYTHON") {
         if !explicit.trim().is_empty() {
@@ -126,12 +136,15 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         .path()
         .resource_dir()
         .unwrap_or_else(|_| dev_root.clone());
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .unwrap_or_else(|_| dev_root.join(".data"));
+    let data_dir = if cfg!(debug_assertions) {
+        app.path()
+            .app_data_dir()
+            .unwrap_or_else(|_| dev_root.join(".data"))
+    } else {
+        install_root().join("data")
+    };
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
-    let packaged = find_packaged_engine(&resource_root, &dev_root, &data_dir);
+    let packaged = find_packaged_engine(&resource_root, &dev_root, &install_root());
     let dev_script = dev_root.join("sidecar").join("app.py");
     if packaged.is_none() && !(cfg!(debug_assertions) && dev_script.exists()) {
         let mut info = state.info.lock().unwrap();
@@ -182,11 +195,7 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(log_err));
 
-    let engine_root = if resource_root.join("engine").join("GPT-SoVITS").exists() {
-        resource_root.join("engine").join("GPT-SoVITS")
-    } else {
-        data_dir.join("engine").join("GPT-SoVITS")
-    };
+    let engine_root = install_root().join("engine").join("GPT-SoVITS");
     if std::env::var("VOICE_SMITH_ENGINE").is_err() {
         command.env("VOICE_SMITH_ENGINE", engine_root);
     }
@@ -264,11 +273,8 @@ fn download_url(url: &str, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn runtime_dir(app: &tauri::AppHandle) -> PathBuf {
-    app.path()
-        .app_data_dir()
-        .unwrap_or_else(|_| project_root().join(".data"))
-        .join("runtime")
+fn runtime_dir(_app: &tauri::AppHandle) -> PathBuf {
+    install_root().join("runtime")
 }
 
 fn find_7zr(app: &tauri::AppHandle) -> Option<PathBuf> {
@@ -316,7 +322,7 @@ fn install_runtime(
     if url.trim().is_empty() {
         return Err("runtime pack URL is empty".into());
     }
-    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let data_dir = install_root();
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
     let pack = data_dir.join("runtime-pack.7z");
     let mut expected = sha256.unwrap_or_default();

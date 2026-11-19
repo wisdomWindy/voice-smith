@@ -204,7 +204,14 @@ M0（Tauri/Vue/sidecar/mock）、M1（资产/doctor/快速音色）、M2（V2Pro
 - 复测：48k/3.44s，峰值 **0.631**、RMS **0.054**、削波 **0**。
 - 已重编 runtime pack 并上传：sha256 `785b9350af04ad5971c1a3a8f87a930b9429c4c52a97562988264785ecf4a83c`。
 
-## 19. 已知问题
+## 19. 安装目录自包含
+
+- 安装器允许用户选择目录；release 版 install_root = voice-smith.exe 所在目录。
+- runtime -> {install}\runtime；engine -> {install}\engine\GPT-SoVITS；data（SQLite/voices/outputs/logs/models）-> {install}\data。
+- 实测安装到 D:\VoiceSmith-test：sidecar 路径 D:\VoiceSmith-test\runtime\voicesmith-engine.exe，--data-dir D:\VoiceSmith-test\data，doctor 8/8，V4 推理 peak .703/rms .051/clip 0。
+- 不再使用 %APPDATA%\com.voicesmith.desktop 存放软件文件。
+
+## 20. 已知问题
 
 - 首次真实推理需加载模型（约 10–15 秒）；训练任务需要独占 GPU，当前未与推理任务做显存互斥。
 - 真实推理/训练依赖当前机器的 C 盘资产目录；安装器尚未把这些资产纳入发布流程。

@@ -8,7 +8,7 @@
     "spec": true,
     "plan": true
   },
-  "currentMilestone": "Huihui noise fixed (int16 scaling); release runtime updated",
-  "updatedAt": "2026-11-19T13:45:00.000Z",
-  "notes": "V4 TTS 返回 int16，worker 未除 32768 导致 88% 削波；修复后 peak .631/rms .054/clip 0，runtime sha 785b... 已上传 v0.1.0。"
+  "currentMilestone": "Install-dir self-contained runtime/engine/data; v0.1.0 updated",
+  "updatedAt": "2026-11-19T14:00:00.000Z",
+  "notes": "安装器所选目录自包含：runtime/、engine/、data/；D:\\VoiceSmith-test 实测 sidecar/数据路径正确，doctor 8/8，V4 peak .703/clip 0。"
 }
