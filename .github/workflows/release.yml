@@ -31,27 +31,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           V="${{ steps.version.outputs.version }}"
-          BASE="https://github.com/${{ github.repository }}/releases/download/v$V"
-          cat > /tmp/notes.md <<EOF
-          # VoiceSmith $V
-
-          ## Windows 10/11 x64
-          - [涓嬭浇 Windows NSIS 瀹夎鍣╙($BASE/VoiceSmith-$V-windows-x64-setup.exe)
-
-          ## macOS Intel
-          - [涓嬭浇 macOS Intel DMG]($BASE/VoiceSmith-$V-macos-intel.dmg)
-
-          ## macOS Apple Silicon
-          - [涓嬭浇 macOS Apple Silicon DMG]($BASE/VoiceSmith-$V-macos-apple-silicon.dmg)
-
-          > Windows 瀹夎鍣ㄩ娆″惎鍔ㄨ嚜鍔ㄤ笅杞?Windows runtime/assets銆?          > macOS 瀹夎鍖呭凡鏋勫缓锛沵acOS runtime/assets 浠嶅緟鍗曠嫭鍙戝竷銆?          EOF
-          gh release view "v$V" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
-            gh release create "v$V" --repo "${{ github.repository }}" --title "VoiceSmith $V" --notes-file /tmp/notes.md
-          if [ -f "docs/releases/v$V.md" ]; then
-            gh release edit "v$V" --repo "${{ github.repository }}" --notes-file "docs/releases/v$V.md"
-          else
-            gh release edit "v$V" --repo "${{ github.repository }}" --notes-file /tmp/notes.md
+          NOTES="docs/releases/v$V.md"
+          if [ ! -f "$NOTES" ]; then
+            echo "# VoiceSmith $V" > /tmp/notes.md
+            NOTES=/tmp/notes.md
           fi
+          gh release view "v$V" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create "v$V" --repo "${{ github.repository }}" --title "VoiceSmith $V" --notes-file "$NOTES"
+          gh release edit "v$V" --repo "${{ github.repository }}" --notes-file "$NOTES"
 
   installer:
     needs: prepare
@@ -99,4 +86,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "v${{ needs.prepare.outputs.version }}" dist-assets/* --repo "${{ github.repository }}" --clobber
-
