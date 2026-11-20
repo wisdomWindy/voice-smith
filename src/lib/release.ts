@@ -1,4 +1,5 @@
-export const RELEASE_TAG = 'v0.1.4'
+export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0'
+export const RELEASE_TAG = `v${APP_VERSION}`
 export const RELEASE_BASE = `https://github.com/wisdomWindy/voice-smith/releases/download/${RELEASE_TAG}`
 
 export const RUNTIME_MANIFESTS: Record<string, string> = {
