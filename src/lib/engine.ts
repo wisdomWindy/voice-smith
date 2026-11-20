@@ -70,15 +70,6 @@ export type Voice = {
   s2_model?: string | null
 }
 
-export type QuickVoiceInput = {
-  name: string
-  ref_audio_path: string
-  ref_text: string
-  prompt_lang?: string
-  text_lang?: string
-  model_version?: string
-}
-
 export type Emotion = {
   id: string
   voice_id: string
@@ -263,14 +254,6 @@ export class EngineClient {
     const response = await this.request('/api/v1/voices')
     const data = (await response.json()) as { items: Voice[] }
     return data.items
-  }
-
-  async createQuickVoice(input: QuickVoiceInput): Promise<Voice> {
-    const response = await this.request('/api/v1/voices/quick', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    })
-    return (await response.json()) as Voice
   }
 
   async deleteVoice(voiceId: string): Promise<void> {

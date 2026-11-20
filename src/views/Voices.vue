@@ -7,10 +7,6 @@ const engine = useEngineStore()
 const voices = ref<Voice[]>([])
 const error = ref('')
 const message = ref('')
-const creating = ref(false)
-const name = ref('我的快速音色')
-const refPath = ref('')
-const refText = ref('')
 const emotionVoiceId = ref('')
 const emotionName = ref('平静')
 const emotionPath = ref('')
@@ -25,33 +21,6 @@ async function load() {
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   }
-}
-
-async function createQuick() {
-  if (!engine.client || !refPath.value.trim() || !refText.value.trim()) return
-  creating.value = true
-  error.value = ''
-  message.value = ''
-  try {
-    await engine.client.createQuickVoice({
-      name: name.value,
-      ref_audio_path: refPath.value.trim(),
-      ref_text: refText.value.trim(),
-    })
-    message.value = '快速音色已创建；M2 接入真实 GPT-SoVITS 后可直接合成。'
-    await load()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
-  } finally {
-    creating.value = false
-  }
-}
-
-async function browse() {
-  if (!isTauri()) return
-  const { invoke } = await import('@tauri-apps/api/core')
-  const path = await invoke<string | null>('pick_audio_file')
-  if (path) refPath.value = path
 }
 
 async function loadEmotions() {
@@ -137,7 +106,7 @@ watch(
       <div class="card-head">
         <div>
           <h2>音色库</h2>
-          <p class="muted small">快速音色只需要 5–10 秒参考音频 + 准确转写，不训练。</p>
+          <p class="muted small">训练完成的音色会显示在这里；不再提供快速音色创建。</p>
         </div>
         <span class="tag">{{ voices.length }} 个</span>
       </div>
@@ -157,35 +126,6 @@ watch(
           </button>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <h2>新建快速音色</h2>
-          <p class="muted small">填入本机参考音频路径；真实推理在 M2 接入。</p>
-        </div>
-      </div>
-      <div class="form-grid">
-        <label class="field">
-          <span>名称</span>
-          <input v-model="name" class="input" />
-        </label>
-        <label class="field" style="grid-column: span 2">
-          <span>参考音频路径（wav/mp3/flac，3–10 秒）</span>
-          <div class="row gap">
-            <input v-model="refPath" class="input" style="flex:1" placeholder="例如 C:\audio\my_voice.wav" />
-            <button v-if="isTauri()" class="button ghost" type="button" @click="browse">选择文件</button>
-          </div>
-        </label>
-        <label class="field" style="grid-column: span 3">
-          <span>参考音频转写（必须准确）</span>
-          <input v-model="refText" class="input" placeholder="参考音频里说的那句话" />
-        </label>
-      </div>
-      <button class="button primary" :disabled="creating || !refPath.trim() || !refText.trim()" @click="createQuick">
-        {{ creating ? '创建中…' : '创建快速音色' }}
-      </button>
     </div>
 
     <div class="card">

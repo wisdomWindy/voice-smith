@@ -229,50 +229,6 @@ def list_voices() -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
-def create_quick_voice(
-    name: str,
-    ref_audio_path: str,
-    ref_text: str,
-    prompt_lang: str = "zh",
-    text_lang: str = "zh",
-    model_version: str = "v5turbo",
-) -> dict[str, Any]:
-    source = Path(ref_audio_path).expanduser().resolve()
-    if not source.exists():
-        raise FileNotFoundError(str(source))
-    if source.suffix.lower() not in {".wav", ".mp3", ".flac"}:
-        raise ValueError("reference audio must be wav/mp3/flac")
-    voice_id = f"voice_{uuid.uuid4().hex[:10]}"
-    target_dir = DATA_DIR / "voices" / voice_id
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / f"ref{source.suffix.lower()}"
-    shutil.copy2(source, target)
-    with LOCK, closing(connect()) as conn:
-        conn.execute(
-            """
-            INSERT INTO voices(
-              id,name,type,status,created_at,ref_audio_path,ref_text,prompt_lang,text_lang,model_version,engine
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                voice_id,
-                name.strip() or "快速音色",
-                "quick",
-                "ready",
-                now_iso(),
-                str(target),
-                ref_text.strip(),
-                prompt_lang,
-                text_lang,
-                model_version,
-                "gpt-sovits",
-            ),
-        )
-        conn.commit()
-        row = conn.execute("SELECT * FROM voices WHERE id = ?", (voice_id,)).fetchone()
-        return dict(row)
-
-
 def delete_voice(voice_id: str) -> bool:
     voice = get_voice(voice_id)
     if not voice:
@@ -580,15 +536,6 @@ class BatchSynthesisRequest(BaseModel):
     request_id: Optional[str] = None
 
 
-class QuickVoiceRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
-    ref_audio_path: str
-    ref_text: str = Field(min_length=1, max_length=500)
-    prompt_lang: str = "zh"
-    text_lang: str = "zh"
-    model_version: str = "v5turbo"
-
-
 class EmotionRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     ref_audio_path: str
@@ -814,23 +761,6 @@ def doctor() -> dict[str, Any]:
 @app.get("/api/v1/voices", dependencies=[Depends(require_token)])
 def voices() -> dict[str, Any]:
     return {"items": list_voices()}
-
-
-@app.post("/api/v1/voices/quick", status_code=201, dependencies=[Depends(require_token)])
-def quick_voice(req: QuickVoiceRequest) -> dict[str, Any]:
-    try:
-        return create_quick_voice(
-            req.name,
-            req.ref_audio_path,
-            req.ref_text,
-            req.prompt_lang,
-            req.text_lang,
-            req.model_version,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"reference audio not found: {exc}") from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.delete("/api/v1/voices/{voice_id}", dependencies=[Depends(require_token)])
