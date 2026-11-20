@@ -288,19 +288,21 @@ fn curl_program() -> &'static str {
 
 fn download_url(url: &str, target: &Path) -> Result<(), String> {
     let mut last_error = String::new();
-    for attempt in 0..3 {
+    for attempt in 0..5 {
         let mut curl = Command::new(curl_program());
         curl.args([
             "-L",
             "--fail",
+            "--http1.1",
             "--retry",
-            "5",
+            "8",
             "--retry-delay",
-            "2",
+            "3",
+            "--retry-all-errors",
             "--connect-timeout",
             "20",
             "--speed-time",
-            "60",
+            "90",
             "--speed-limit",
             "1024",
             "-C",
@@ -315,12 +317,14 @@ fn download_url(url: &str, target: &Path) -> Result<(), String> {
         if status.success() {
             return Ok(());
         }
-        last_error = format!("download failed: {status}");
-        // Server may not support range resume; retry once from scratch.
-        if target.exists() {
+        let code = status.code().unwrap_or(-1);
+        last_error = format!("download failed: {status} (curl code {code})");
+        // Only drop the partial file when the server rejects range resume.
+        // Network resets (56) and timeouts keep the bytes for the next attempt.
+        if code == 33 && target.exists() {
             let _ = fs::remove_file(target);
         }
-        std::thread::sleep(std::time::Duration::from_secs(2 * (attempt + 1)));
+        std::thread::sleep(std::time::Duration::from_secs(3 * (attempt + 1)));
     }
     Err(last_error)
 }
