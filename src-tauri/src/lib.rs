@@ -267,6 +267,8 @@ struct RuntimeStatus {
 #[derive(Deserialize)]
 struct PackPart {
     url: String,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -285,17 +287,42 @@ fn curl_program() -> &'static str {
 }
 
 fn download_url(url: &str, target: &Path) -> Result<(), String> {
-    let mut curl = Command::new(curl_program());
-    curl.args(["-L", "--fail", "--retry", "3", "-o"])
+    let mut last_error = String::new();
+    for attempt in 0..3 {
+        let mut curl = Command::new(curl_program());
+        curl.args([
+            "-L",
+            "--fail",
+            "--retry",
+            "5",
+            "--retry-delay",
+            "2",
+            "--connect-timeout",
+            "20",
+            "--speed-time",
+            "60",
+            "--speed-limit",
+            "1024",
+            "-C",
+            "-",
+            "-o",
+        ])
         .arg(target)
         .arg(url);
-    #[cfg(target_os = "windows")]
-    curl.creation_flags(CREATE_NO_WINDOW);
-    let status = curl.status().map_err(|e| format!("curl failed: {e}"))?;
-    if !status.success() {
-        return Err(format!("download failed: {status}"));
+        #[cfg(target_os = "windows")]
+        curl.creation_flags(CREATE_NO_WINDOW);
+        let status = curl.status().map_err(|e| format!("curl failed: {e}"))?;
+        if status.success() {
+            return Ok(());
+        }
+        last_error = format!("download failed: {status}");
+        // Server may not support range resume; retry once from scratch.
+        if target.exists() {
+            let _ = fs::remove_file(target);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2 * (attempt + 1)));
     }
-    Ok(())
+    Err(last_error)
 }
 
 fn runtime_dir(_app: &tauri::AppHandle) -> PathBuf {
@@ -386,7 +413,7 @@ fn install_runtime_blocking(
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
     let pack = data_dir.join("runtime-pack.7z");
     let mut expected = sha256.unwrap_or_default();
-    let mut urls = vec![url.trim().to_string()];
+    let mut parts = vec![(url.trim().to_string(), None)];
     if url.trim().to_lowercase().ends_with(".json") {
         emit_runtime_progress(app, 5, "Downloading manifest");
         let manifest_path = data_dir.join("runtime-manifest.json");
@@ -397,15 +424,24 @@ fn install_runtime_blocking(
         if !manifest.sha256.is_empty() {
             expected = manifest.sha256;
         }
-        urls = manifest.parts.into_iter().map(|part| part.url).collect();
+        parts = manifest.parts.into_iter().map(|part| (part.url, part.size)).collect();
         let _ = fs::remove_file(&manifest_path);
     }
     emit_runtime_progress(app, 10, "Downloading runtime parts");
-    let total_parts = urls.len().max(1);
+    let total_parts = parts.len().max(1);
     let mut output = fs::File::create(&pack).map_err(|e| e.to_string())?;
-    for (index, part_url) in urls.iter().enumerate() {
+    for (index, (part_url, part_size)) in parts.iter().enumerate() {
         let part = data_dir.join(format!("runtime-part-{index:02}.bin"));
         download_url(part_url, &part)?;
+        if let Some(expected_size) = part_size {
+            let actual_size = fs::metadata(&part).map_err(|e| e.to_string())?.len();
+            if actual_size != *expected_size {
+                let _ = fs::remove_file(&part);
+                return Err(format!(
+                    "runtime part {index} size mismatch: {actual_size} != {expected_size}"
+                ));
+            }
+        }
         let mut input = fs::File::open(&part).map_err(|e| e.to_string())?;
         std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
         let _ = fs::remove_file(&part);
