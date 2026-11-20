@@ -142,19 +142,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install 7z
-        run: sudo apt-get update && sudo apt-get install -y p7zip-full
-      - name: Stage engine assets
+      - name: Reuse published V5 asset pack
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: |
-          gh release download v0.1.0 --repo "${{ github.repository }}" -p 'assets.part*' -D base
-          cat base/assets.part* > assets.7z
-          7z x assets.7z -oassets -y
-          test -d "assets/engine/GPT-SoVITS"
-          7z a "VoiceSmith-Offline-Assets-universal.7z" ./assets/engine
-          python scripts/ci/split_pack.py "VoiceSmith-Offline-Assets-universal.7z" "assets-universal"
+          gh release download v0.1.5 --repo "${{ github.repository }}" -p 'assets-universal.part*' -p 'assets-*-manifest.json' -D base
+          test -f "base/assets-universal.part01"
+          cp base/assets-universal.part* .
           for p in windows-x64 macos-intel macos-arm64; do
-            cp assets-universal-manifest.json "assets-$p-manifest.json"
+            cp "base/assets-$p-manifest.json" "assets-$p-manifest.json"
           done
       - name: Upload
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
