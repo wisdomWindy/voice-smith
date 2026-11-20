@@ -162,7 +162,7 @@ def init_db() -> None:
             conn.execute("ALTER TABLE jobs ADD COLUMN batch_id TEXT")
         conn.execute(
             "INSERT OR IGNORE INTO voices(id,name,type,status,created_at) VALUES(?,?,?,?,?)",
-            ("demo_edge", "缁€杞扮伐闂婂疇澹婇敍鍦ck閿?, "free", "ready", now_iso()),
+            ("demo_edge", "示例音色（Mock）", "free", "ready", now_iso()),
         )
         conn.execute(
             "UPDATE trainings SET status='failed', detail='engine restarted', finished_at=? "
@@ -184,12 +184,12 @@ def init_db() -> None:
                 """,
                 (
                     "demo_hui",
-                    "缁€杞扮伐闂婂疇澹婇敍鍦歶ihui 閸欏倽鈧喛绱?,
+                    "示例音色（Huihui 参考）",
                     "quick",
                     "ready",
                     now_iso(),
                     str(ref_file),
-                    "閸忓牆绗ｉ崚娑楃瑹閺堫亜宕愰懓灞艰厬闁挸绌垮▓鍌︾礉娴犲﹤銇夋稉瀣╃瑏閸掑棴绱濋惄濠傜獮閻ゆ彃绱涢敍灞绢劃鐠囨艾宓勯幀銉ョ摠娴溾€茬缁夊绡冮妴?,
+                    "先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。",
                     "zh",
                     "zh",
                     "v4",
@@ -254,7 +254,7 @@ def create_quick_voice(
             """,
             (
                 voice_id,
-                name.strip() or "韫囶偊鈧喖鐓堕懝?,
+                name.strip() or "快速音色",
                 "quick",
                 "ready",
                 now_iso(),
@@ -372,7 +372,7 @@ def register_trained_voice(
             """,
             (
                 voice_id,
-                f"{record.get('exp_name') or '瀵邦喛鐨?}閿涘牆浜曠拫鍐跨礆",
+                f"{record.get('exp_name') or '微调'}（微调）",
                 "trained",
                 "ready",
                 now_iso(),
@@ -629,6 +629,7 @@ class TrainingRequest(BaseModel):
     s1_epochs: int = Field(default=5, ge=1, le=50)
     s2_epochs: int = Field(default=2, ge=1, le=50)
     batch_size: int = Field(default=2, ge=1, le=8)
+    num_workers: int = Field(default=2, ge=1, le=8)
     force: bool = False
     request_id: Optional[str] = None
 
@@ -699,10 +700,10 @@ def doctor() -> dict[str, Any]:
     py = sys.version_info
     py_ok = (3, 10) <= (py.major, py.minor) <= (3, 12)
     checks.append({
-        "id": "python", "name": "Python 閻楀牊婀?,
+        "id": "python", "name": "Python 版本",
         "status": "pass" if py_ok else "warn",
         "detail": f"{py.major}.{py.minor}.{py.micro}",
-        "fix": "" if py_ok else "GPT-SoVITS 閹恒劏宕?Python 3.10閳?.12閿涙稖顕崚鍥ㄥ床 sidecar 鏉╂劘顢戦弮?,
+        "fix": "" if py_ok else "GPT-SoVITS 推荐 Python 3.10–3.12；请切换 sidecar 运行时",
     })
 
     torch_ok = False
@@ -719,18 +720,18 @@ def doctor() -> dict[str, Any]:
             "id": "cuda", "name": "CUDA",
             "status": "pass" if cuda_ok else "fail",
             "detail": torch.version.cuda or "not available",
-            "fix": "" if cuda_ok else "婵☆偀鍋撻柡?NVIDIA 妞瑰崬濮?CUDA wheel",
+            "fix": "" if cuda_ok else "妫€鏌?NVIDIA 驱动/CUDA wheel",
         })
     except Exception as exc:  # noqa: BLE001
         checks.append({
             "id": "torch", "name": "PyTorch",
             "status": "fail", "detail": str(exc),
-            "fix": "鐎瑰顥婃稉?CUDA 閸栧綊鍘ら惃?torch/torchaudio",
+            "fix": "安装与 CUDA 匹配的 torch/torchaudio",
         })
         checks.append({
             "id": "cuda", "name": "CUDA",
-            "status": "fail", "detail": "torch 閺堫亜鐣ㄧ憗鍜冪礉閺冪姵纭跺Λ鈧ù?,
-            "fix": "閸忓牆鐣ㄧ憗?torch",
+            "status": "fail", "detail": "torch 未安装，无法检测",
+            "fix": "先安装 torch",
         })
 
     try:
@@ -743,13 +744,13 @@ def doctor() -> dict[str, Any]:
             "id": "gpu", "name": "GPU",
             "status": "pass" if out.returncode == 0 else "fail",
             "detail": detail,
-            "fix": "" if out.returncode == 0 else "鐎瑰顥?閺囧瓨鏌?NVIDIA 妞瑰崬濮?,
+            "fix": "" if out.returncode == 0 else "安装/更新 NVIDIA 驱动",
         })
     except Exception as exc:  # noqa: BLE001
         checks.append({
             "id": "gpu", "name": "GPU",
             "status": "fail", "detail": str(exc),
-            "fix": "鐎瑰顥?NVIDIA 濡炵懓宕慨鈺呯嵁閸撲讲鈧ɑ绌?nvidia-smi 閸欘垳鏁?,
+            "fix": "安装 NVIDIA 椹卞姩骞剁‘淇?nvidia-smi 可用",
         })
 
     ffmpeg = shutil.which("ffmpeg")
@@ -765,22 +766,22 @@ def doctor() -> dict[str, Any]:
     checks.append({
         "id": "ffmpeg", "name": "ffmpeg",
         "status": "pass" if ffmpeg else "fail",
-        "fix": "" if ffmpeg else "鐏?ffmpeg.exe/ffprobe.exe 閺€鎯у弳鎼存梻鏁ら惄顔肩秿閹?PATH",
-        "fix": "" if ffmpeg else "閻?ffmpeg.exe/ffprobe.exe 闁衡偓閹冨汲閹煎瓨姊婚弫銈夋儎椤旇偐绉块柟?PATH",
+        "fix": "" if ffmpeg else "将 ffmpeg.exe/ffprobe.exe 放入应用目录或 PATH",
+        "fix": "" if ffmpeg else "灏?ffmpeg.exe/ffprobe.exe 鏀惧叆搴旂敤鐩綍鎴?PATH",
     })
 
     try:
         free_gb = shutil.disk_usage(DATA_DIR).free / (1024 ** 3)
         checks.append({
-            "id": "disk", "name": "绾句胶娲忕粚娲？",
+            "id": "disk", "name": "磁盘空间",
             "status": "pass" if free_gb >= 20 else "warn",
             "detail": f"{free_gb:.1f} GB free",
-            "fix": "" if free_gb >= 20 else "瀵ら缚顔呮０鍕殌 20GB 娴犮儰绗?,
+            "fix": "" if free_gb >= 20 else "建议预留 20GB 以上",
         })
     except Exception as exc:  # noqa: BLE001
         checks.append({
-            "id": "disk", "name": "绾句胶娲忕粚娲？",
-            "status": "fail", "detail": str(exc), "fix": "濡偓閺屻儲鏆熼幑顔炬窗瑜版洘娼堥梽?,
+            "id": "disk", "name": "磁盘空间",
+            "status": "fail", "detail": str(exc), "fix": "检查数据目录权限",
         })
 
     asset_state = asset_store.list_assets()
@@ -788,18 +789,18 @@ def doctor() -> dict[str, Any]:
     frontend_ids = ["bert", "hubert", "g2pw"]
     missing_frontend = [i for i in frontend_ids if not by_id.get(i, {}).get("present")]
     checks.append({
-        "id": "text_frontend", "name": "閺傚洦婀伴崜宥囶伂閿涘湐ERT/HuBERT/G2PW閿?,
+        "id": "text_frontend", "name": "文本前端（BERT/HuBERT/G2PW）",
         "status": "pass" if not missing_frontend else "warn",
-        "detail": "瀹告彃姘ㄧ紒? if not missing_frontend else "缂傚搫鐨敍? + ", ".join(missing_frontend),
-        "fix": "" if not missing_frontend else "閸︺劍膩閸ㄥ绁禍褔銆夌€电厧鍙?娑撳娴?BERT閵嗕笭uBERT閵嗕笩2PWModel",
+        "detail": "已就绪" if not missing_frontend else "缺少：" + ", ".join(missing_frontend),
+        "fix": "" if not missing_frontend else "在模型资产页导入/下载 BERT、HuBERT、G2PWModel",
     })
     weight_ids = ["gpt", "sovits", "v4_vocoder", "sv"]
     missing_weights = [i for i in weight_ids if not by_id.get(i, {}).get("present")]
     checks.append({
-        "id": "weights", "name": "GPT/SoVITS/SV 閺夊啴鍣?,
+        "id": "weights", "name": "GPT/SoVITS/SV 权重",
         "status": "pass" if not missing_weights else "warn",
-        "detail": "瀹告彃姘ㄧ紒? if not missing_weights else "缂傚搫鐨敍? + ", ".join(missing_weights),
-        "fix": "" if not missing_weights else "閸︺劍膩閸ㄥ绁禍褔銆夌€电厧鍙?s1v3/s2Gv4/vocoder.pth/SV 閺夊啴鍣?,
+        "detail": "已就绪" if not missing_weights else "缺少：" + ", ".join(missing_weights),
+        "fix": "" if not missing_weights else "在模型资产页导入 s1v3/s2Gv4/vocoder.pth/SV 权重",
     })
 
     counts = {"pass": 0, "warn": 0, "fail": 0}
@@ -911,7 +912,7 @@ def create_training_record(req: TrainingRequest) -> dict[str, Any]:
             INSERT INTO trainings(id,request_id,exp_name,dataset_list,status,stage,progress,detail,log_path,created_at)
             VALUES(?,?,?,?,?,?,?,?,?,?)
             """,
-            (training_id, req.request_id, req.exp_name, req.dataset_list, "queued", "queued", 0, "閹烘帡妲?, str(log_path), now_iso()),
+            (training_id, req.request_id, req.exp_name, req.dataset_list, "queued", "queued", 0, "排队", str(log_path), now_iso()),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM trainings WHERE id = ?", (training_id,)).fetchone()
@@ -1005,6 +1006,7 @@ def training_create(req: TrainingRequest) -> dict[str, Any]:
                     "s1_epochs": req.s1_epochs,
                     "s2_epochs": req.s2_epochs,
                     "batch_size": req.batch_size,
+                    "num_workers": req.num_workers,
                     "force": req.force,
                 },
                 training_callback,
@@ -1102,7 +1104,7 @@ def training_cancel(training_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="training not found")
     if record["status"] in {"succeeded", "failed", "cancelled"}:
         return record
-    update_training(training_id, status="cancelling", detail="濮濓絽婀崣鏍ㄧХ")
+    update_training(training_id, status="cancelling", detail="正在取消")
     training_runner.request_cancel(training_id)
     return get_training(training_id) or record
 

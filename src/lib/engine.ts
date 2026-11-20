@@ -111,6 +111,7 @@ export type TrainingInput = {
   s1_epochs?: number
   s2_epochs?: number
   batch_size?: number
+  num_workers?: number
   force?: boolean
 }
 

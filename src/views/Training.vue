@@ -25,6 +25,7 @@ const expName = ref('my_voice')
 const s1Epochs = ref(5)
 const s2Epochs = ref(2)
 const batchSize = ref(2)
+const dataWorkers = ref(2)
 const force = ref(false)
 let timer: number | undefined
 
@@ -115,6 +116,7 @@ async function start() {
       s1_epochs: s1Epochs.value,
       s2_epochs: s2Epochs.value,
       batch_size: batchSize.value,
+      num_workers: dataWorkers.value,
       force: force.value,
     })
     activeId.value = job.id
@@ -197,6 +199,21 @@ onUnmounted(() => {
         <label class="field">
           <span>batch</span>
           <input v-model.number="batchSize" class="input" type="number" min="1" max="8" />
+        </label>
+        <label class="field" style="grid-column: span 2">
+          <span>DataLoader 进程数：{{ dataWorkers }}</span>
+          <input
+            v-model.number="dataWorkers"
+            type="range"
+            min="1"
+            max="8"
+            step="1"
+            :disabled="!!busy"
+            style="width:100%"
+          />
+          <small class="muted">
+            {{ busy ? '任务进行中不可修改；下次启动任务时生效。' : '任务执行前设置，启动训练时生效。' }}
+          </small>
         </label>
         <label class="check">
           <input v-model="force" type="checkbox" />

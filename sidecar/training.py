@@ -178,7 +178,7 @@ def _base_env() -> dict[str, str]:
     return env
 
 
-def _write_s1(exp_dir: Path, epochs: int, batch_size: int) -> Path:
+def _write_s1(exp_dir: Path, epochs: int, batch_size: int, num_workers: int = 1) -> Path:
     assert ENGINE is not None
     config = {
         "train": {
@@ -194,7 +194,7 @@ def _write_s1(exp_dir: Path, epochs: int, batch_size: int) -> Path:
             "exp_name": exp_dir.name,
         },
         "optimizer": {"lr": 0.01, "lr_init": 0.00001, "lr_end": 0.0001, "warmup_steps": 2000, "decay_steps": 40000},
-        "data": {"max_eval_sample": 8, "max_sec": 20, "num_workers": 1, "pad_val": 1024},
+        "data": {"max_eval_sample": 8, "max_sec": 20, "num_workers": int(num_workers), "pad_val": 1024},
         "model": {
             "vocab_size": 1025,
             "phoneme_vocab_size": 732,
@@ -218,7 +218,7 @@ def _write_s1(exp_dir: Path, epochs: int, batch_size: int) -> Path:
     return path
 
 
-def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480) -> Path:
+def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480, num_workers: int = 1) -> Path:
     assert ENGINE is not None
     base = json.loads((ENGINE / "GPT_SoVITS" / "configs" / "s2v4.json").read_text(encoding="utf-8"))
     base["train"].update(
@@ -238,6 +238,7 @@ def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480) -> Path:
         }
     )
     base["data"]["exp_dir"] = str(exp_dir)
+    base["data"]["num_workers"] = int(num_workers)
     base["model"]["version"] = "v4"
     base["model"]["gin_channels"] = 512
     base["s2_ckpt_dir"] = str(exp_dir / "logs_s2_v4")
@@ -335,9 +336,10 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
         s1_epochs = max(1, min(int(spec.get("s1_epochs", 5)), 50))
         s2_epochs = max(1, min(int(spec.get("s2_epochs", 2)), 50))
         batch = max(1, min(int(spec.get("batch_size", 2)), 8))
+        num_workers = max(1, min(int(spec.get("num_workers", 2)), 8))
 
         on_update(job_id, stage="s1", progress=58, detail=f"S1 训练 · {s1_epochs} epochs")
-        s1_config = _write_s1(exp_dir, s1_epochs, batch)
+        s1_config = _write_s1(exp_dir, s1_epochs, batch, num_workers)
         oom_retries = 0
         while True:
             try:
@@ -350,10 +352,10 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
                 oom_retries += 1
                 _append(log_path, f"=== S1 OOM detected; retry {oom_retries} with batch={batch} ===")
                 on_update(job_id, stage="s1", progress=58, detail=f"S1 OOM 自愈 · batch={batch}")
-                s1_config = _write_s1(exp_dir, s1_epochs, batch)
+                s1_config = _write_s1(exp_dir, s1_epochs, batch, num_workers)
 
         on_update(job_id, stage="s2", progress=76, detail=f"S2 训练 · {s2_epochs} epochs")
-        s2_config = _write_s2(exp_dir, s2_epochs)
+        s2_config = _write_s2(exp_dir, s2_epochs, num_workers=num_workers)
         try:
             _run(job_id, "S2 train", _python_command(gpt / "s2_train_v3.py", ENGINE) + ["-c", str(s2_config)], gpt, env, log_path)
         except RuntimeError:
@@ -361,7 +363,7 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
                 raise
             _append(log_path, "=== S2 OOM detected; retry with segment_size=10240 ===")
             on_update(job_id, stage="s2", progress=76, detail="S2 OOM 自愈 · segment=10240")
-            s2_config = _write_s2(exp_dir, s2_epochs, segment_size=10240)
+            s2_config = _write_s2(exp_dir, s2_epochs, segment_size=10240, num_workers=num_workers)
             _run(job_id, "S2 train (OOM retry)", _python_command(gpt / "s2_train_v3.py", ENGINE) + ["-c", str(s2_config)], gpt, env, log_path)
 
         s1_model = _newest(exp_dir / "logs_s1", f"{exp_dir.name}-e{s1_epochs}.ckpt") or _newest(exp_dir / "logs_s1", "*.ckpt")
