@@ -338,9 +338,23 @@ fn runtime_status(app: tauri::AppHandle) -> RuntimeStatus {
 }
 
 #[tauri::command]
-fn install_runtime(
+async fn install_runtime(
     app: tauri::AppHandle,
-    state: State<EngineState>,
+    url: String,
+    sha256: Option<String>,
+) -> Result<EngineInfo, String> {
+    let app_for_task = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_task.state::<EngineState>();
+        install_runtime_blocking(&app_for_task, state.inner(), url, sha256)
+    })
+    .await
+    .map_err(|e| format!("runtime install task failed: {e}"))?
+}
+
+fn install_runtime_blocking(
+    app: &tauri::AppHandle,
+    state: &EngineState,
     url: String,
     sha256: Option<String>,
 ) -> Result<EngineInfo, String> {
@@ -408,7 +422,7 @@ fn install_runtime(
         fs::rename(entry.path(), dest).map_err(|e| e.to_string())?;
     }
     let _ = fs::remove_dir_all(&staging);
-    start_engine(&app, state.inner())
+    start_engine(app, state)
 }
 
 #[tauri::command]
