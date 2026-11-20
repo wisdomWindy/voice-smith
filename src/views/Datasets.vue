@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { isTauri } from '../lib/engine'
 import { addDataset, datasets, deleteDataset } from '../lib/datasets'
+import { selectedProject } from '../lib/projects'
 
 const name = ref('')
 const rawAudio = ref('')
 const error = ref('')
+const visibleDatasets = computed(() => datasets.value.filter((item) => item.projectId === selectedProject.value?.id))
 
 async function browse() {
   if (!isTauri()) return
@@ -18,12 +20,16 @@ async function browse() {
 }
 
 function create() {
+  if (!selectedProject.value) {
+    error.value = '请先在「项目」页面选择项目'
+    return
+  }
   if (!rawAudio.value.trim()) {
     error.value = '请选择原始音频'
     return
   }
   error.value = ''
-  addDataset(name.value, rawAudio.value.trim())
+  addDataset(name.value, rawAudio.value.trim(), selectedProject.value.id)
   name.value = ''
   rawAudio.value = ''
 }
@@ -41,7 +47,7 @@ function remove(id: string) {
           <h2>数据集</h2>
           <p class="muted small">上传原始音频，创建一个待预处理的数据集。</p>
         </div>
-        <span class="tag">{{ datasets.length }} 个</span>
+        <span class="tag">{{ visibleDatasets.length }} 个</span>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
       <label class="field">
@@ -63,13 +69,13 @@ function remove(id: string) {
       <table class="table">
         <thead><tr><th>名称</th><th>状态</th><th>原始音频</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-for="item in datasets" :key="item.id">
+          <tr v-for="item in visibleDatasets" :key="item.id">
             <td>{{ item.name }}</td>
             <td>{{ item.status === 'raw' ? '待预处理' : '已预处理' }}</td>
             <td class="ellipsis">{{ item.rawAudio }}</td>
             <td><button class="button ghost small" @click="remove(item.id)">删除</button></td>
           </tr>
-          <tr v-if="!datasets.length"><td colspan="4" class="muted">还没有数据集。</td></tr>
+          <tr v-if="!visibleDatasets.length"><td colspan="4" class="muted">还没有数据集。</td></tr>
         </tbody>
       </table>
     </div>

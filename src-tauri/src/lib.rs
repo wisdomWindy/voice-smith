@@ -502,6 +502,23 @@ fn delete_output(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn pick_project_folder() -> Option<String> {
+    rfd::FileDialog::new().pick_folder().map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn create_project_structure(path: String) -> Result<(), String> {
+    let root = PathBuf::from(path);
+    if !root.is_dir() {
+        return Err("project folder does not exist".into());
+    }
+    for child in ["datasets", "training", "outputs", "logs"] {
+        fs::create_dir_all(root.join(child)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn pick_audio_file() -> Option<String> {
     rfd::FileDialog::new()
         .add_filter("Audio", &["wav", "mp3", "flac"])
@@ -539,6 +556,8 @@ pub fn run() {
             runtime_status,
             install_runtime,
             pick_audio_file,
+            pick_project_folder,
+            create_project_structure,
             delete_output,
             pick_training_file
         ])

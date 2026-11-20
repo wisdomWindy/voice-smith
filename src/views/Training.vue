@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEngineStore } from '../stores/engine'
 import type { Training } from '../lib/engine'
 import { datasets } from '../lib/datasets'
+import { selectedProject } from '../lib/projects'
 
 const engine = useEngineStore()
 const items = ref<Training[]>([])
@@ -19,7 +20,7 @@ const dataWorkers = ref(2)
 const force = ref(false)
 let timer: number | undefined
 
-const readyDatasets = computed(() => datasets.value.filter((item) => item.status === 'preprocessed' && item.listPath))
+const readyDatasets = computed(() => datasets.value.filter((item) => item.projectId === selectedProject.value?.id && item.status === 'preprocessed' && item.listPath))
 const selectedDataset = computed(() => readyDatasets.value.find((item) => item.id === selectedDatasetId.value))
 const active = computed(() => items.value.find((item) => item.id === activeId.value) || items.value[0])
 const busy = computed(() => active.value && ['queued', 'running', 'cancelling'].includes(active.value.status))

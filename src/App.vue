@@ -178,6 +178,7 @@ const statusDetail = computed(() => {
       </div>
 
       <nav class="nav">
+        <RouterLink to="/projects" class="nav-item">项目</RouterLink>
         <RouterLink to="/datasets" class="nav-item">数据集</RouterLink>
         <RouterLink to="/preprocess" class="nav-item">预处理</RouterLink>
         <RouterLink to="/training" class="nav-item">训练</RouterLink>

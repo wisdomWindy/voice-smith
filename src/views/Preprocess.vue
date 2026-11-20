@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useEngineStore } from '../stores/engine'
 import { datasets, updateDataset } from '../lib/datasets'
+import { selectedProject } from '../lib/projects'
 
 const engine = useEngineStore()
 const selectedId = ref(datasets.value[0]?.id || '')
@@ -10,7 +11,8 @@ const step = ref('')
 const error = ref('')
 const message = ref('')
 
-const selected = computed(() => datasets.value.find((item) => item.id === selectedId.value))
+const visibleDatasets = computed(() => datasets.value.filter((item) => item.projectId === selectedProject.value?.id))
+const selected = computed(() => visibleDatasets.value.find((item) => item.id === selectedId.value))
 const canRun = computed(() => Boolean(selected.value && engine.client && !busy.value))
 
 async function run() {
@@ -54,7 +56,7 @@ async function run() {
       <label class="field">
         <span>数据集</span>
         <select v-model="selectedId" class="input">
-          <option v-for="item in datasets" :key="item.id" :value="item.id">
+          <option v-for="item in visibleDatasets" :key="item.id" :value="item.id">
             {{ item.name }} · {{ item.status === 'raw' ? '待预处理' : '已预处理' }}
           </option>
         </select>

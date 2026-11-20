@@ -10,11 +10,13 @@ import Settings from './views/Settings.vue'
 import Datasets from './views/Datasets.vue'
 import Preprocess from './views/Preprocess.vue'
 import Tasks from './views/Tasks.vue'
+import Projects from './views/Projects.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'inference', component: Workbench },
+    { path: '/projects', name: 'projects', component: Projects },
     { path: '/datasets', name: 'datasets', component: Datasets },
     { path: '/preprocess', name: 'preprocess', component: Preprocess },
     { path: '/training', name: 'training', component: Training },

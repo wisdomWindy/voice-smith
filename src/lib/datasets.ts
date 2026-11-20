@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 export type DatasetRecord = {
   id: string
+  projectId: string
   name: string
   rawAudio: string
   createdAt: string
@@ -26,9 +27,10 @@ export function saveDatasets() {
   localStorage.setItem(KEY, JSON.stringify(datasets.value))
 }
 
-export function addDataset(name: string, rawAudio: string): DatasetRecord {
+export function addDataset(name: string, rawAudio: string, projectId: string): DatasetRecord {
   const record: DatasetRecord = {
     id: `ds_${Date.now().toString(36)}`,
+    projectId,
     name: name.trim() || `数据集 ${datasets.value.length + 1}`,
     rawAudio,
     createdAt: new Date().toISOString(),
