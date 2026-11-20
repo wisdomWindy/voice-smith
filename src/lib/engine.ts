@@ -163,6 +163,7 @@ export type Job = {
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
   progress: number
   audio_url?: string | null
+  audio_path?: string | null
   error?: string | null
   text?: string
   voice_id?: string

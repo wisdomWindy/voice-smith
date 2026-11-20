@@ -178,14 +178,11 @@ const statusDetail = computed(() => {
       </div>
 
       <nav class="nav">
-        <RouterLink to="/" class="nav-item">工作台</RouterLink>
-        <RouterLink to="/doctor" class="nav-item">环境自检</RouterLink>
-        <RouterLink to="/voices" class="nav-item">音色库</RouterLink>
+        <RouterLink to="/datasets" class="nav-item">数据集</RouterLink>
+        <RouterLink to="/preprocess" class="nav-item">预处理</RouterLink>
         <RouterLink to="/training" class="nav-item">训练</RouterLink>
-        <RouterLink to="/history" class="nav-item">历史</RouterLink>
-        <RouterLink to="/models" class="nav-item">模型</RouterLink>
-        <RouterLink to="/assets" class="nav-item">模型资产</RouterLink>
-        <RouterLink to="/settings" class="nav-item">设置</RouterLink>
+        <RouterLink to="/" class="nav-item">推理</RouterLink>
+        <RouterLink to="/tasks" class="nav-item">任务</RouterLink>
       </nav>
 
       <div class="sidebar-foot">

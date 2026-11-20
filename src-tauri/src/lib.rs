@@ -491,6 +491,17 @@ fn install_runtime_blocking(
 }
 
 #[tauri::command]
+fn delete_output(path: String) -> Result<(), String> {
+    let target = PathBuf::from(&path).canonicalize().map_err(|e| e.to_string())?;
+    let root = install_root().join("data").join("outputs");
+    let root = root.canonicalize().map_err(|e| e.to_string())?;
+    if !target.starts_with(&root) {
+        return Err("refusing to delete outside outputs".into());
+    }
+    fs::remove_file(&target).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn pick_audio_file() -> Option<String> {
     rfd::FileDialog::new()
         .add_filter("Audio", &["wav", "mp3", "flac"])
@@ -528,6 +539,7 @@ pub fn run() {
             runtime_status,
             install_runtime,
             pick_audio_file,
+            delete_output,
             pick_training_file
         ])
         .setup(|app| {
