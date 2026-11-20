@@ -198,7 +198,7 @@ const statusDetail = computed(() => {
           </button>
         </div>
         <RouterLink to="/settings" class="nav-item" style="margin-bottom:8px">设置</RouterLink>
-        <div class="muted tiny">v0.1.7 · 本地优先 · 数据不出机</div>
+        <div class="muted tiny">v0.1.8 · 本地优先 · 数据不出机</div>
       </div>
     </aside>
 
