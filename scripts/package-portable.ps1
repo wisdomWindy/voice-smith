@@ -1,6 +1,6 @@
 param(
-  [string]$Release = "C:\Users\yangjianlin\.voicesmith\tauri-target\release",
-  [string]$Dest = "C:\Users\yangjianlin\.voicesmith\VoiceSmith-portable"
+  [string]$Release = "$PSScriptRoot\..\.cache\tauri-target\release",
+  [string]$Dest = "$PSScriptRoot\..\.cache\VoiceSmith-portable"
 )
 
 $ErrorActionPreference = "Stop"

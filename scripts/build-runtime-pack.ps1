@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$RuntimeDir = "$env:USERPROFILE\.voicesmith\pyinstaller-dist\voicesmith-engine",
+    [string]$RuntimeDir = "$PSScriptRoot\..\.cache\pyinstaller-dist\voicesmith-engine",
     [string]$OutFile = "$PSScriptRoot\..\dist-assets\VoiceSmith-Runtime.7z",
     [string]$SevenZip = "$env:USERPROFILE\.voicesmith\7ztools\7zr.exe"
 )

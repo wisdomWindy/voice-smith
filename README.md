@@ -149,3 +149,15 @@ PRD.md                   PRD v3.0
 2. 训练前处理：UVR5 人声分离、自动切片、ASR 转写校对。
 3. 模型库版本/回滚、批量 A/B。
 4. 训练健壮性：断点续训、取消后显存释放、OOM 自愈。
+
+## 构建缓存
+
+本地 Rust/Tauri 与 PyInstaller 构建缓存统一放在项目内：
+
+```text
+.cache/tauri-target/
+.cache/pyinstaller-build/
+.cache/pyinstaller-dist/
+```
+
+`.cargo/config.toml` 已固定 `target-dir`，不要再用 C 盘的 `CARGO_TARGET_DIR` 覆盖。

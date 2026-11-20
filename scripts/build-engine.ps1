@@ -1,7 +1,7 @@
 param(
   [string]$Python = "C:\Users\yangjianlin\.voicesmith\venv\Scripts\python.exe",
-  [string]$Work = "C:\Users\yangjianlin\.voicesmith\pyinstaller-build",
-  [string]$Dist = "C:\Users\yangjianlin\.voicesmith\pyinstaller-dist",
+  [string]$Work = "$PSScriptRoot\..\.cache\pyinstaller-build",
+  [string]$Dist = "$PSScriptRoot\..\.cache\pyinstaller-dist",
   [switch]$InstallToResources
 )
 

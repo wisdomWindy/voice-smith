@@ -1,10 +1,10 @@
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$Repo = 'wisdomWindy/voice-smith',
-    [string]$RuntimeDir = "$env:USERPROFILE\.voicesmith\pyinstaller-dist\voicesmith-engine",
+    [string]$RuntimeDir = "$PSScriptRoot\..\.cache\pyinstaller-dist\voicesmith-engine",
     [string]$EngineRoot = "$env:APPDATA\com.voicesmith.desktop\engine\GPT-SoVITS",
     [string]$AsrRoot = "$env:APPDATA\com.voicesmith.desktop\models\faster-whisper",
-    [string]$ReleaseDir = "$env:USERPROFILE\.voicesmith\tauri-target\release",
+    [string]$ReleaseDir = "$PSScriptRoot\..\.cache\tauri-target\release",
     [string]$OutDir = "$PSScriptRoot\..\dist-assets",
     [switch]$SkipBuild,
     [switch]$SkipPacks
