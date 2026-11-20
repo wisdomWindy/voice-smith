@@ -4,7 +4,7 @@ import { RouterLink, RouterView } from 'vue-router'
 import { useEngineStore } from './stores/engine'
 import type { AssetPackStatus } from './lib/engine'
 import { platformTag } from './lib/engine'
-import { assetsManifest, runtimeManifest } from './lib/release'
+import { APP_VERSION, assetsManifest, runtimeManifest } from './lib/release'
 
 const engine = useEngineStore()
 const platform = ref('windows-x64')
@@ -198,7 +198,7 @@ const statusDetail = computed(() => {
           </button>
         </div>
         <RouterLink to="/settings" class="nav-item" style="margin-bottom:8px">设置</RouterLink>
-        <div class="muted tiny">v0.1.8 · 本地优先 · 数据不出机</div>
+        <div class="muted tiny">v{{ APP_VERSION }} · 本地优先 · 数据不出机</div>
       </div>
     </aside>
 
@@ -267,7 +267,7 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要 GPT-SoVITS 引擎、编码器、声码器与预训练权重。下载离线资产包后会自动校验 sha256 并安装。
       </p>
-      <p class="muted small">下载地址：GitHub Release v0.1.3（固定，无需填写）。</p>
+      <p class="muted small">下载地址固定，无需填写。</p>
       <div v-if="pack && pack.installing" class="job-block">
         <div class="row space-between">
           <span>{{ pack.message || pack.stage }}</span>
