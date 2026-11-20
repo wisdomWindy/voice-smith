@@ -1,6 +1,6 @@
-"""Single-process launcher for GPT-SoVITS v4 s2_train_v3.
+"""Single-process launcher for GPT-SoVITS v5 s2_train_v3.
 
-The upstream v4 trainer assumes a distributed process group even for one GPU;
+The upstream v5 trainer assumes a distributed process group even for one GPU;
 initialize a local gloo group before running the script.
 """
 

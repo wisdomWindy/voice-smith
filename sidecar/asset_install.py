@@ -43,8 +43,8 @@ def status() -> dict[str, Any]:
     engine = _ENGINE
     required = [
         engine / "GPT_SoVITS" / "pretrained_models" / "s1v3.ckpt" if engine else None,
-        engine / "GPT_SoVITS" / "pretrained_models" / "gsv-v4-pretrained" / "s2Gv4.pth" if engine else None,
-        engine / "GPT_SoVITS" / "pretrained_models" / "gsv-v4-pretrained" / "vocoder.pth" if engine else None,
+        engine / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth" if engine else None,
+        engine / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "vocoder.pth" if engine else None,
     ]
     data["installed"] = all(path and path.exists() for path in required)
     return data

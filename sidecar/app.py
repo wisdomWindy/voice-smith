@@ -34,6 +34,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import assets as asset_store
 import asset_install
 import asr as asr_engine
@@ -150,7 +152,7 @@ def init_db() -> None:
             "ref_text": "TEXT",
             "prompt_lang": "TEXT DEFAULT 'zh'",
             "text_lang": "TEXT DEFAULT 'zh'",
-            "model_version": "TEXT DEFAULT 'v4'",
+            "model_version": "TEXT DEFAULT 'v5turbo'",
             "engine": "TEXT DEFAULT 'mock'",
             "s1_model": "TEXT",
             "s2_model": "TEXT",
@@ -192,11 +194,11 @@ def init_db() -> None:
                     "先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。",
                     "zh",
                     "zh",
-                    "v4",
+                    "v5turbo",
                     "gpt-sovits",
                 ),
             )
-            conn.execute("UPDATE voices SET model_version='v4' WHERE id='demo_hui'")
+            conn.execute("UPDATE voices SET model_version='v5turbo' WHERE id='demo_hui'")
         conn.commit()
 
 
@@ -233,7 +235,7 @@ def create_quick_voice(
     ref_text: str,
     prompt_lang: str = "zh",
     text_lang: str = "zh",
-    model_version: str = "v4",
+    model_version: str = "v5turbo",
 ) -> dict[str, Any]:
     source = Path(ref_audio_path).expanduser().resolve()
     if not source.exists():
@@ -380,7 +382,7 @@ def register_trained_voice(
                 sample_text,
                 "zh",
                 "zh",
-                "v4",
+                "v5turbo",
                 "gpt-sovits",
                 s1_model,
                 s2_model,
@@ -584,7 +586,7 @@ class QuickVoiceRequest(BaseModel):
     ref_text: str = Field(min_length=1, max_length=500)
     prompt_lang: str = "zh"
     text_lang: str = "zh"
-    model_version: str = "v4"
+    model_version: str = "v5turbo"
 
 
 class EmotionRequest(BaseModel):
@@ -650,7 +652,7 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "version": APP_VERSION,
         "engine": "gpt-sovits" if engine_ready else "mock",
-        "model": "v4" if engine_ready else "none",
+        "model": "v5turbo" if engine_ready else "none",
         "mock": not engine_ready,
         "assets_ready": assets_ready,
         "python": sys.version.split()[0],
@@ -794,13 +796,13 @@ def doctor() -> dict[str, Any]:
         "detail": "已就绪" if not missing_frontend else "缺少：" + ", ".join(missing_frontend),
         "fix": "" if not missing_frontend else "在模型资产页导入/下载 BERT、HuBERT、G2PWModel",
     })
-    weight_ids = ["gpt", "sovits", "v4_vocoder", "sv"]
+    weight_ids = ["gpt", "sovits", "vocoder", "sv"]
     missing_weights = [i for i in weight_ids if not by_id.get(i, {}).get("present")]
     checks.append({
         "id": "weights", "name": "GPT/SoVITS/SV 权重",
         "status": "pass" if not missing_weights else "warn",
         "detail": "已就绪" if not missing_weights else "缺少：" + ", ".join(missing_weights),
-        "fix": "" if not missing_weights else "在模型资产页导入 s1v3/s2Gv4/vocoder.pth/SV 权重",
+        "fix": "" if not missing_weights else "在模型资产页导入 s1v3/s2Gv5turbo/vocoder.pth/SV 权重",
     })
 
     counts = {"pass": 0, "warn": 0, "fail": 0}

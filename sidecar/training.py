@@ -98,7 +98,7 @@ def _python_command(script: Path, engine: Path) -> list[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--run-script", str(script), "--engine", str(engine)]
     if script.name.startswith("s2_train_v3"):
-        wrapper = Path(__file__).resolve().parent / "v4_train.py"
+        wrapper = Path(__file__).resolve().parent / "v5_train.py"
         return [sys.executable, str(wrapper), str(script)]
     return [sys.executable, str(script)]
 
@@ -220,7 +220,7 @@ def _write_s1(exp_dir: Path, epochs: int, batch_size: int, num_workers: int = 1)
 
 def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480, num_workers: int = 1) -> Path:
     assert ENGINE is not None
-    base = json.loads((ENGINE / "GPT_SoVITS" / "configs" / "s2v4.json").read_text(encoding="utf-8"))
+    base = json.loads((ENGINE / "GPT_SoVITS" / "configs" / "s2.json").read_text(encoding="utf-8"))
     base["train"].update(
         {
             "epochs": int(epochs),
@@ -233,17 +233,17 @@ def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480, num_workers
             "save_every_epoch": 1,
             "if_save_latest": 0,
             "if_save_every_weights": True,
-            "pretrained_s2G": str(ENGINE / "GPT_SoVITS" / "pretrained_models" / "gsv-v4-pretrained" / "s2Gv4.pth"),
+            "pretrained_s2G": str(ENGINE / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"),
             "pretrained_s2D": "",
         }
     )
     base["data"]["exp_dir"] = str(exp_dir)
     base["data"]["num_workers"] = int(num_workers)
-    base["model"]["version"] = "v4"
+    base["model"]["version"] = "v5turbo"
     base["model"]["gin_channels"] = 512
-    base["s2_ckpt_dir"] = str(exp_dir / "logs_s2_v4")
+    base["s2_ckpt_dir"] = str(exp_dir / "logs_s2_v5turbo")
     base["name"] = exp_dir.name
-    base["save_weight_dir"] = str(exp_dir / "logs_s2_v4")
+    base["save_weight_dir"] = str(exp_dir / "logs_s2_v5turbo")
     path = exp_dir / "s2.json"
     path.write_text(json.dumps(base, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
@@ -252,12 +252,6 @@ def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480, num_workers
 def _newest(path: Path, pattern: str) -> Optional[Path]:
     files = sorted(path.glob(pattern), key=lambda item: item.stat().st_mtime)
     return files[-1] if files else None
-
-
-def _mark_v4_weights(path: Path) -> None:
-    data = path.read_bytes()
-    if data[:2] != b"04":
-        path.write_bytes(b"04" + data[2:])
 
 
 def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., None]) -> None:
@@ -296,7 +290,7 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
             "all_parts": "1",
             "opt_dir": str(exp_dir),
             "is_half": "True",
-            "version": "v4",
+            "version": "v5turbo",
         }
 
         on_update(job_id, stage="text", progress=12, detail="文本与 BERT 特征")
@@ -315,15 +309,15 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
         _run(job_id, "2-get-sv", _python_command(gpt / "prepare_datasets" / "2-get-sv.py", ENGINE), ENGINE, env_sv, log_path)
 
         on_update(job_id, stage="semantic", progress=50, detail="语义 token")
-        semantic_cfg = json.loads((gpt / "configs" / "s2v4.json").read_text(encoding="utf-8"))
+        semantic_cfg = json.loads((gpt / "configs" / "s2.json").read_text(encoding="utf-8"))
         semantic_cfg["model"].pop("version", None)
         semantic_cfg["model"]["gin_channels"] = 512
-        semantic_cfg_path = exp_dir / "s2v4_semantic.json"
+        semantic_cfg_path = exp_dir / "s2_semantic.json"
         semantic_cfg_path.write_text(json.dumps(semantic_cfg, ensure_ascii=False), encoding="utf-8")
         env3 = {
             **env,
             **common,
-            "pretrained_s2G": str(gpt / "pretrained_models" / "gsv-v4-pretrained" / "s2Gv4.pth"),
+            "pretrained_s2G": str(gpt / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"),
             "s2config_path": str(semantic_cfg_path),
         }
         _run(job_id, "3-get-semantic", _python_command(gpt / "prepare_datasets" / "3-get-semantic.py", ENGINE), ENGINE, env3, log_path)
@@ -368,12 +362,10 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
 
         s1_model = _newest(exp_dir / "logs_s1", f"{exp_dir.name}-e{s1_epochs}.ckpt") or _newest(exp_dir / "logs_s1", "*.ckpt")
         s2_model = (
-            _newest(exp_dir / "logs_s2_v4", f"{exp_dir.name}_e{s2_epochs}_s*.pth")
-            or _newest(exp_dir / "logs_s2_v4", "*_s*.pth")
-            or _newest(exp_dir / "logs_s2_v4", "G_*.pth")
+            _newest(exp_dir / "logs_s2_v5turbo", f"{exp_dir.name}_e{s2_epochs}_s*.pth")
+            or _newest(exp_dir / "logs_s2_v5turbo", "*_s*.pth")
+            or _newest(exp_dir / "logs_s2_v5turbo", "G_*.pth")
         )
-        if s2_model and "_s" in s2_model.stem:
-            _mark_v4_weights(s2_model)
         on_update(
             job_id,
             stage="done",

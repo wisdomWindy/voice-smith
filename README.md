@@ -7,7 +7,7 @@ GPT-SoVITS 在本地跑推理与训练，零服务器成本，默认零遥测。
 
 - **M0 完成**：Tauri 窗口、Vue 界面、FastAPI sidecar、SQLite、doctor、mock 试听/异步合成。
 - **M1 完成**：模型资产中心、真实 doctor（8/8）、快速音色（参考音频）。
-- **M2 完成**：V4 真实推理（48k）；持久化 worker 冷启动约 20s、热任务复用；UI 任务成功并可下载 WAV。
+- **M2 完成**：V5 Turbo 真实推理（48k）；持久化 worker 冷启动约 20s、热任务复用；UI 任务成功并可下载 WAV。
 - **M3 完成**：数据集 `.list` → QC → BERT/HuBERT/SV/语义 → S1/S2 训练 → 自动发布微调音色 → 真实合成；S1 225 步、S2 192 步已验证，S1 断点恢复已修复。
 - **模型资产**：7 个关键权重带 sha256；校验页可显示 `hash` 失败，导入后自动复核。
 - **离线资产包 + 运行时**：主安装器 **3.5MB**；首启先下载 `VoiceSmith-Runtime.7z`（2.34GiB），再下载 `VoiceSmith-Offline-Assets.7z`（3.02GiB），sha256 校验、7zr 解压。
@@ -67,13 +67,13 @@ engine/GPT-SoVITS/GPT_SoVITS/pretrained_models/
   chinese-roberta-wwm-ext-large/
   chinese-hubert-base/
   s1v3.ckpt
-  gsv-v4-pretrained/s2Gv4.pth
-  gsv-v4-pretrained/vocoder.pth
+  gsv-v5-pretrained/s2Gv5turbo.pth
+  gsv-v5-pretrained/vocoder.pth
   sv/pretrained_eres2netv2w24s4ep4.ckpt
 engine/GPT-SoVITS/GPT_SoVITS/text/G2PWModel/
 ```
 
-V4（48k）默认；V2Pro 作为显存/速度兼容档，额外权重见 `docs/GPT-SoVITS-integration.md`。
+V5 Turbo（48k，4 步）默认；V5 Dev 作为质量档；不再支持 V4/V3/V2。
 
 ## 开发运行
 

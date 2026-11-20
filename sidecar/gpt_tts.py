@@ -52,9 +52,9 @@ def main() -> int:
         {
             "device": device,
             "is_half": is_half,
-            "version": "v4",
+            "version": "v5turbo",
             "t2s_weights_path": "GPT_SoVITS/pretrained_models/s1v3.ckpt",
-            "vits_weights_path": "GPT_SoVITS/pretrained_models/gsv-v4-pretrained/s2Gv4.pth",
+            "vits_weights_path": "GPT_SoVITS/pretrained_models/gsv-v5-pretrained/s2Gv5turbo.pth",
             "cnhuhbert_base_path": "GPT_SoVITS/pretrained_models/chinese-hubert-base",
             "bert_base_path": "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",
         }
@@ -62,10 +62,7 @@ def main() -> int:
     config_path = out.with_suffix(".yaml")
     config_path.write_text(yaml.safe_dump({"custom": custom}, allow_unicode=True), encoding="utf-8")
 
-    from process_ckpt import head2version
-
-head2version[b"04"] = ["v2", "v4", False]
-from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
+    from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
 
     tts = TTS(TTS_Config(str(config_path)))
     req = {
@@ -83,7 +80,7 @@ from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
         "seed": args.seed,
         "parallel_infer": True,
         "repetition_penalty": 1.35,
-        "sample_steps": 32,
+        "sample_steps": 4,
         "super_sampling": False,
         "media_type": "wav",
     }
