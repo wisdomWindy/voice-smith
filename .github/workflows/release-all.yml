@@ -145,19 +145,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Reuse published V5 asset pack
+      - name: Pull fixed V5 engine manifest
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: |
-          gh release download v0.1.5 --repo "${{ github.repository }}" -p 'assets-universal.part*' -p 'assets-*-manifest.json' -D base
-          test -f "base/assets-universal.part01"
-          cp base/assets-universal.part* .
+          gh release download v5-engine --repo "${{ github.repository }}" -p 'engine-v5-manifest.json' -D base
+          test -s base/engine-v5-manifest.json
           for p in windows-x64 macos-intel macos-arm64; do
-            cp "base/assets-$p-manifest.json" "assets-$p-manifest.json"
+            cp base/engine-v5-manifest.json "assets-$p-manifest.json"
           done
-      - name: Upload
+      - name: Upload manifests
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: |
-          gh release upload "v$VERSION" assets-universal.part* assets-windows-x64-manifest.json assets-macos-intel-manifest.json assets-macos-arm64-manifest.json --repo "${{ github.repository }}" --clobber
+          gh release upload "v$VERSION" assets-windows-x64-manifest.json assets-macos-intel-manifest.json assets-macos-arm64-manifest.json --repo "${{ github.repository }}" --clobber
 
   finalize:
     needs: [installers, runtime-windows, runtime-macos, assets]
