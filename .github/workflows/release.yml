@@ -32,10 +32,9 @@ jobs:
         run: |
           V="${{ steps.version.outputs.version }}"
           NOTES="docs/releases/v$V.md"
-          if [ ! -f "$NOTES" ]; then
-            echo "# VoiceSmith $V" > /tmp/notes.md
-            NOTES=/tmp/notes.md
-          fi
+          test -s "$NOTES"
+          test "$(wc -c < "$NOTES")" -gt 100
+          grep -q '下载' "$NOTES"
           gh release view "v$V" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create "v$V" --repo "${{ github.repository }}" --title "VoiceSmith $V" --notes-file "$NOTES"
           gh release edit "v$V" --repo "${{ github.repository }}" --notes-file "$NOTES"
