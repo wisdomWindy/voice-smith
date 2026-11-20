@@ -15,6 +15,8 @@ const pack = ref<AssetPackStatus | null>(null)
 const packBusy = ref(false)
 let packTimer: number | undefined
 const showRuntime = ref(true)
+const showDonate = ref(false)
+const donateTab = ref<'alipay' | 'wechat'>('alipay')
 const runtimeChecking = ref(true)
 const runtimeBusy = ref(false)
 const runtimeError = ref('')
@@ -187,6 +189,9 @@ const statusDetail = computed(() => {
       </nav>
 
       <div class="sidebar-foot">
+        <button class="button ghost small" style="width:100%;margin-bottom:8px" @click="showDonate = true">
+          支持 VoiceSmith
+        </button>
         <div class="engine-card">
           <div class="engine-row">
             <span class="dot" :class="engine.status"></span>
@@ -221,6 +226,32 @@ const statusDetail = computed(() => {
 
       <RouterView />
     </main>
+  </div>
+
+  <div v-if="showDonate" class="modal-mask" @click.self="showDonate = false">
+    <div class="modal">
+      <h2>支持 VoiceSmith</h2>
+      <p class="muted small">如果这个工具帮到了你，可以扫码请作者喝杯咖啡。捐赠完全自愿，不影响任何功能。</p>
+      <div class="row gap" style="margin:10px 0">
+        <button class="button" :class="donateTab === 'alipay' ? 'primary' : 'ghost'" @click="donateTab = 'alipay'">支付宝</button>
+        <button class="button" :class="donateTab === 'wechat' ? 'primary' : 'ghost'" @click="donateTab = 'wechat'">微信支付</button>
+      </div>
+      <div style="text-align:center">
+        <img
+          v-if="donateTab === 'alipay'"
+          src="/donate/alipay.jpg"
+          alt="支付宝收款码"
+          style="max-width:300px;width:100%;border-radius:12px;background:#fff;padding:8px"
+        />
+        <img
+          v-else
+          src="/donate/wechat.png"
+          alt="微信支付收款码"
+          style="max-width:300px;width:100%;border-radius:12px;background:#fff;padding:8px"
+        />
+      </div>
+      <button class="button ghost" style="margin-top:12px" @click="showDonate = false">关闭</button>
+    </div>
   </div>
 
   <div v-if="showRuntime" class="modal-mask">

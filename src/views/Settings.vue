@@ -11,7 +11,6 @@ const updateVersion = ref('')
 const updateAvailable = ref(false)
 const updating = ref(false)
 const updateProgress = ref(0)
-const donateTab = ref<'alipay' | 'wechat'>('alipay')
 
 async function checkUpdate() {
   updateMessage.value = '检查中…'
@@ -100,27 +99,6 @@ async function exportDiagnostics() {
       <progress v-if="updating" :value="updateProgress" max="100" style="width:100%;margin-top:8px"></progress>
 
       <div class="divider" />
-      <h2 style="margin-bottom:6px">支持 VoiceSmith</h2>
-      <p class="muted small">如果这个工具帮到了你，可以扫码请作者喝杯咖啡。捐赠完全自愿，不影响任何功能。</p>
-      <div class="row gap" style="margin:10px 0">
-        <button class="button" :class="donateTab === 'alipay' ? 'primary' : 'ghost'" @click="donateTab = 'alipay'">支付宝</button>
-        <button class="button" :class="donateTab === 'wechat' ? 'primary' : 'ghost'" @click="donateTab = 'wechat'">微信支付</button>
-      </div>
-      <div style="text-align:center">
-        <img
-          v-if="donateTab === 'alipay'"
-          src="/donate/alipay.jpg"
-          alt="支付宝收款码"
-          style="max-width:260px;width:100%;border-radius:12px;background:#fff;padding:8px"
-        />
-        <img
-          v-else
-          src="/donate/wechat.png"
-          alt="微信支付收款码"
-          style="max-width:260px;width:100%;border-radius:12px;background:#fff;padding:8px"
-        />
-        <p class="muted small">打开支付宝或微信扫一扫</p>
-      </div>
       <p v-if="message" class="muted small">{{ message }}</p>
       <p class="muted small">
         安全边界：sidecar 只绑定 127.0.0.1，随机端口 + 每次启动 token；前端通过 Tauri
