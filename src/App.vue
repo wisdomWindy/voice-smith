@@ -14,7 +14,8 @@ const showAssets = ref(false)
 const pack = ref<AssetPackStatus | null>(null)
 const packBusy = ref(false)
 let packTimer: number | undefined
-const showRuntime = ref(false)
+const showRuntime = ref(true)
+const runtimeChecking = ref(true)
 const runtimeBusy = ref(false)
 const runtimeError = ref('')
 const runtimeProgress = ref(0)
@@ -31,6 +32,7 @@ async function installRuntimePack() {
     if (ok) {
       runtimeProgress.value = 100
       runtimeStage.value = '安装完成'
+      runtimeChecking.value = false
       showRuntime.value = false
       await checkAssets()
     } else {
@@ -82,7 +84,13 @@ watch(
   async (status) => {
     if (status === 'runtime_missing') {
       showRuntime.value = true
+      runtimeChecking.value = false
       showAssets.value = false
+      return
+    }
+    if (status === 'error' && !engine.info) {
+      showRuntime.value = true
+      runtimeChecking.value = false
       return
     }
     if (status !== 'ready' || !engine.client) return
@@ -127,6 +135,19 @@ onMounted(async () => {
   } catch {
     platform.value = 'windows-x64'
   }
+  try {
+    const state = await engine.runtime()
+    runtimeChecking.value = false
+    if (!state.installed) {
+      showRuntime.value = true
+      return
+    }
+    showRuntime.value = false
+  } catch {
+    runtimeChecking.value = false
+    showRuntime.value = true
+    return
+  }
   if (engine.status === 'starting' && !engine.info) void engine.init()
 })
 
@@ -146,7 +167,7 @@ const statusDetail = computed(() => {
 </script>
 
 <template>
-  <div class="shell">
+  <div v-if="!showRuntime" class="shell">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">VS</div>
@@ -209,6 +230,7 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要下载 VoiceSmith 运行时（Python + PyTorch/CUDA，约 2–3GB 压缩包）。安装后还需下载离线资产包。
       </p>
+      <p v-if="runtimeChecking" class="muted">Checking runtime...</p>
       <div v-if="runtimeBusy" class="job-block">
         <div class="row space-between">
           <span>{{ runtimeStage || '下载安装中…' }}</span>
@@ -217,7 +239,7 @@ const statusDetail = computed(() => {
         <progress :value="runtimeProgress" max="100" style="width:100%"></progress>
       </div>
       <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
-      <button class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
+      <button v-if="!runtimeChecking" class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
         {{ runtimeBusy ? '下载安装中…' : '下载并安装运行时' }}
       </button>
     </div>
