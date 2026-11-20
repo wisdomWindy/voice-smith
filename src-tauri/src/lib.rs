@@ -7,13 +7,29 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[derive(Clone, Serialize)]
+struct RuntimeProgress {
+    percent: u8,
+    stage: String,
+}
+
+fn emit_runtime_progress(app: &tauri::AppHandle, percent: u8, stage: &str) {
+    let _ = app.emit(
+        "runtime-progress",
+        RuntimeProgress {
+            percent,
+            stage: stage.to_string(),
+        },
+    );
+}
 
 #[derive(Clone, Serialize)]
 struct EngineInfo {
@@ -344,12 +360,16 @@ async fn install_runtime(
     sha256: Option<String>,
 ) -> Result<EngineInfo, String> {
     let app_for_task = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         let state = app_for_task.state::<EngineState>();
         install_runtime_blocking(&app_for_task, state.inner(), url, sha256)
     })
     .await
-    .map_err(|e| format!("runtime install task failed: {e}"))?
+    .map_err(|e| format!("runtime install task failed: {e}"))?;
+    if result.is_ok() {
+        emit_runtime_progress(&app, 100, "Runtime installed");
+    }
+    result
 }
 
 fn install_runtime_blocking(
@@ -361,12 +381,14 @@ fn install_runtime_blocking(
     if url.trim().is_empty() {
         return Err("runtime pack URL is empty".into());
     }
+    emit_runtime_progress(app, 2, "Preparing runtime");
     let data_dir = install_root();
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
     let pack = data_dir.join("runtime-pack.7z");
     let mut expected = sha256.unwrap_or_default();
     let mut urls = vec![url.trim().to_string()];
     if url.trim().to_lowercase().ends_with(".json") {
+        emit_runtime_progress(app, 5, "Downloading manifest");
         let manifest_path = data_dir.join("runtime-manifest.json");
         download_url(url.trim(), &manifest_path)?;
         let text = fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
@@ -378,6 +400,8 @@ fn install_runtime_blocking(
         urls = manifest.parts.into_iter().map(|part| part.url).collect();
         let _ = fs::remove_file(&manifest_path);
     }
+    emit_runtime_progress(app, 10, "Downloading runtime parts");
+    let total_parts = urls.len().max(1);
     let mut output = fs::File::create(&pack).map_err(|e| e.to_string())?;
     for (index, part_url) in urls.iter().enumerate() {
         let part = data_dir.join(format!("runtime-part-{index:02}.bin"));
@@ -385,8 +409,10 @@ fn install_runtime_blocking(
         let mut input = fs::File::open(&part).map_err(|e| e.to_string())?;
         std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
         let _ = fs::remove_file(&part);
+        emit_runtime_progress(app, 10 + (((index + 1) * 55) / total_parts) as u8, "Downloading runtime parts");
     }
     drop(output);
+    emit_runtime_progress(app, 68, "Verifying runtime");
     if !expected.trim().is_empty() {
         let actual = sha256_file(&pack)?;
         if actual.to_lowercase() != expected.trim().to_lowercase() {
@@ -394,6 +420,7 @@ fn install_runtime_blocking(
             return Err(format!("runtime sha256 mismatch: {actual}"));
         }
     }
+    emit_runtime_progress(app, 78, "Extracting runtime");
     let seven = find_7zr(&app).ok_or("7zr.exe not found")?;
     let target = runtime_dir(&app);
     let staging = data_dir.join("runtime-staging");
@@ -414,6 +441,7 @@ fn install_runtime_blocking(
     if !status.success() {
         return Err(format!("runtime extract failed: {status}"));
     }
+    emit_runtime_progress(app, 92, "Installing runtime files");
     let _ = fs::remove_dir_all(&target);
     fs::create_dir_all(&target).map_err(|e| e.to_string())?;
     for entry in fs::read_dir(&staging).map_err(|e| e.to_string())? {
@@ -422,6 +450,7 @@ fn install_runtime_blocking(
         fs::rename(entry.path(), dest).map_err(|e| e.to_string())?;
     }
     let _ = fs::remove_dir_all(&staging);
+    emit_runtime_progress(app, 99, "Starting engine");
     start_engine(app, state)
 }
 

@@ -17,13 +17,20 @@ let packTimer: number | undefined
 const showRuntime = ref(false)
 const runtimeBusy = ref(false)
 const runtimeError = ref('')
+const runtimeProgress = ref(0)
+const runtimeStage = ref('')
+let runtimeUnlisten: (() => void) | undefined
 
 async function installRuntimePack() {
   runtimeBusy.value = true
   runtimeError.value = ''
+  runtimeProgress.value = 0
+  runtimeStage.value = '准备下载'
   try {
     const ok = await engine.installRuntimePack(runtimeManifest(platform.value))
     if (ok) {
+      runtimeProgress.value = 100
+      runtimeStage.value = '安装完成'
       showRuntime.value = false
       await checkAssets()
     } else {
@@ -91,6 +98,7 @@ watch(
 )
 
 onUnmounted(() => window.clearInterval(packTimer))
+onUnmounted(() => runtimeUnlisten?.())
 
 async function acceptTerms() {
   if (!engine.client) return
@@ -105,6 +113,15 @@ async function acceptTerms() {
 }
 
 onMounted(async () => {
+  try {
+    const { listen } = await import('@tauri-apps/api/event')
+    runtimeUnlisten = await listen<{ percent: number; stage: string }>('runtime-progress', (event) => {
+      runtimeProgress.value = Math.max(0, Math.min(100, event.payload.percent))
+      runtimeStage.value = event.payload.stage
+    })
+  } catch {
+    // Browser preview has no Tauri event bridge.
+  }
   try {
     platform.value = await platformTag()
   } catch {
@@ -192,7 +209,13 @@ const statusDetail = computed(() => {
       <p class="muted">
         首次使用需要下载 VoiceSmith 运行时（Python + PyTorch/CUDA，约 2–3GB 压缩包）。安装后还需下载离线资产包。
       </p>
-      <p class="muted small">下载地址：GitHub Release v0.1.3（固定，无需填写）。</p>
+      <div v-if="runtimeBusy" class="job-block">
+        <div class="row space-between">
+          <span>{{ runtimeStage || '下载安装中…' }}</span>
+          <strong>{{ runtimeProgress }}%</strong>
+        </div>
+        <progress :value="runtimeProgress" max="100" style="width:100%"></progress>
+      </div>
       <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
       <button class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
         {{ runtimeBusy ? '下载安装中…' : '下载并安装运行时' }}
