@@ -88,7 +88,6 @@ async function exportDiagnostics() {
         <span>引擎模式</span><strong>{{ engine.health?.engine ?? '—' }}</strong>
         <span>Python</span><strong>{{ engine.health?.python ?? '—' }}</strong>
         <span>数据目录</span><strong class="ellipsis">{{ engine.health?.data_dir ?? '—' }}</strong>
-        <span>遥测</span><strong>关闭</strong>
         <span>更新检查</span><strong>{{ updateMessage || '自动检查' }}</strong>
       </div>
 

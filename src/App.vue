@@ -199,7 +199,7 @@ const statusDetail = computed(() => {
             重启引擎
           </button>
         </div>
-        <div class="muted tiny">v0.1.0 · 本地优先 · 零遥测</div>
+        <div class="muted tiny">v0.1.7 · 本地优先 · 数据不出机</div>
       </div>
     </aside>
 
@@ -252,7 +252,7 @@ const statusDetail = computed(() => {
         VoiceSmith 是本地 TTS 工具。你对生成的音频用途负责；禁止伪造他人声音、诈骗、侵权或违法用途。
       </p>
       <ul class="muted small">
-        <li>音频、模型、日志只保存在本机；默认零遥测。</li>
+        <li>音频、模型、日志只保存在本机，数据不出机。</li>
         <li>模型权重与训练数据由你自行提供，需确保授权合法。</li>
         <li>本软件不提供内容审核或授权审核。</li>
       </ul>
