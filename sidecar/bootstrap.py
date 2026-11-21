@@ -6,6 +6,17 @@ import sys
 from pathlib import Path
 
 
+def _distutils_shim(root: Path) -> None:
+    """Python 3.12 dropped distutils; FunASR still imports it."""
+    site = root / "Lib" / "site-packages"
+    src = site / "setuptools" / "_distutils"
+    dst = site / "distutils"
+    if src.is_dir() and not dst.exists():
+        import shutil
+
+        shutil.copytree(src, dst)
+
+
 def main() -> int:
     root = Path(sys.executable).resolve().parent
     folders = [root / "deps" / "core", root / "deps" / "torch"]
@@ -41,6 +52,7 @@ def main() -> int:
     if installed == 0:
         print("no wheel packs found", file=sys.stderr)
         return 2
+    _distutils_shim(root)
     return 0
 
 
