@@ -46,7 +46,7 @@ import training as training_runner
 import uvr5 as uvr5_engine
 from real_engine import RealEngine
 
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.2.6"
 TOKEN = ""
 DATA_DIR = Path.cwd() / ".data"
 DB_PATH = DATA_DIR / "voice_smith.db"
