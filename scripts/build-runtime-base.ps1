@@ -1,9 +1,15 @@
 param(
     [string]$OutFile = "$PSScriptRoot\..\dist-assets\VoiceSmith-Runtime-base.7z",
     [string]$SevenZip = "$PSScriptRoot\..\sidecar\7zr.exe",
-    [string]$PythonVersion = '3.11.9'
+    [string]$PythonVersion = '3.11.9',
+    [string]$PipVersion = '25.2'
 )
 
+# Runtime base = embedded CPython + pip + sidecar sources.
+# The Rust installer flattens python/ into <install>\runtime and keeps
+# sidecar/ as <install>\runtime\sidecar, then runs
+#   runtime\python.exe sidecar\bootstrap.py
+#   runtime\python.exe sidecar\app.py
 $ErrorActionPreference = 'Stop'
 $stage = Join-Path $env:TEMP ("voicesmith-runtime-base-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $py = Join-Path $stage 'python'
@@ -16,13 +22,31 @@ if (!(Test-Path $zip)) {
 }
 Expand-Archive $zip -DestinationPath $py -Force
 
-# Enable site-packages and local dependency installs.
+# Enable site-packages and the sibling sidecar directory for the flat runtime
+# layout (python.exe lives next to sidecar\ after installation).
 $pth = Get-ChildItem $py -Filter 'python*._pth' | Select-Object -First 1
 if ($pth) {
-    $lines = Get-Content $pth.FullName
-    if ($lines -notcontains 'Lib\site-packages') { Add-Content $pth.FullName 'Lib\site-packages' }
-    if ($lines -notcontains '..\sidecar') { Add-Content $pth.FullName '..\sidecar' }
+    $lines = @(Get-Content $pth.FullName | Where-Object { $_.Trim() -ne '..\sidecar' })
+    if ($lines -notcontains 'Lib\site-packages') { $lines += 'Lib\site-packages' }
+    if ($lines -notcontains 'sidecar') { $lines += 'sidecar' }
+    Set-Content -Path $pth.FullName -Value $lines -Encoding ascii
 }
+
+# bootstrap.py shells out to `python -m pip`; the embeddable distribution does
+# not ship pip, so install it into the staged runtime.
+$pythonExe = Join-Path $py 'python.exe'
+$getPip = Join-Path $env:TEMP 'voicesmith-get-pip.py'
+if (!(Test-Path $getPip)) {
+    Invoke-WebRequest 'https://bootstrap.pypa.io/get-pip.py' -OutFile $getPip
+}
+& $pythonExe $getPip --no-warn-script-location --disable-pip-version-check
+if ($LASTEXITCODE -ne 0) { throw "pip install failed: $LASTEXITCODE" }
+if ($PipVersion) {
+    & $pythonExe -m pip install --no-warn-script-location --disable-pip-version-check "pip==$PipVersion"
+    if ($LASTEXITCODE -ne 0) { throw "pip pin failed: $LASTEXITCODE" }
+}
+& $pythonExe -m pip --version
+if ($LASTEXITCODE -ne 0) { throw "pip is not usable in the staged runtime" }
 
 # sidecar source (no virtualenv, no PyInstaller).
 Copy-Item "$PSScriptRoot\..\sidecar\*.py" $sidecar -Force

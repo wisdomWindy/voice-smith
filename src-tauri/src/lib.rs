@@ -90,6 +90,16 @@ fn install_root() -> PathBuf {
         .unwrap_or_else(project_root)
 }
 
+fn runtime_root() -> PathBuf {
+    if let Ok(explicit) = std::env::var("VOICE_SMITH_RUNTIME") {
+        let trimmed = explicit.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    install_root().join("runtime")
+}
+
 fn resolve_python(root: &PathBuf) -> PathBuf {
     if let Ok(explicit) = std::env::var("VOICE_SMITH_PYTHON") {
         if !explicit.trim().is_empty() {
@@ -134,6 +144,27 @@ fn find_packaged_engine(resource_root: &PathBuf, dev_root: &PathBuf, data_dir: &
     candidates.into_iter().find(|path| path.exists())
 }
 
+fn python_exe_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "python.exe"
+    } else {
+        "python"
+    }
+}
+
+fn log_tail(path: &Path, lines: usize) -> String {
+    fs::read_to_string(path)
+        .unwrap_or_default()
+        .lines()
+        .rev()
+        .take(lines)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn stop_engine(state: &EngineState) {
     let mut guard = state.child.lock().unwrap();
     if let Some(mut child) = guard.take() {
@@ -161,8 +192,8 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         install_root().join("data")
     };
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
-    let runtime_root = install_root().join("runtime");
-    let embedded_python = runtime_root.join(if cfg!(target_os = "windows") { "python.exe" } else { "python" });
+    let runtime_root = runtime_root();
+    let embedded_python = runtime_root.join(python_exe_name());
     let embedded_script = runtime_root.join("sidecar").join("app.py");
     let embedded_ready = embedded_python.exists() && embedded_script.exists();
     let packaged = if embedded_ready {
@@ -256,16 +287,7 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         }
         std::thread::sleep(std::time::Duration::from_millis(250));
     }
-    let tail = fs::read_to_string(&log_path)
-        .unwrap_or_default()
-        .lines()
-        .rev()
-        .take(12)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join("\n");
+    let tail = log_tail(&log_path, 12);
     stop_engine(state);
     Err(format!(
         "sidecar did not start. Log: {}\n{}",
@@ -298,18 +320,44 @@ struct RuntimeStatus {
     path: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct PackPart {
     url: String,
     #[serde(default)]
     size: Option<u64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct PackManifest {
     #[serde(default)]
     sha256: String,
+    #[serde(default)]
+    size: Option<u64>,
+    #[serde(default)]
     parts: Vec<PackPart>,
+}
+
+#[derive(Deserialize)]
+struct BundleComponent {
+    name: String,
+    manifest: String,
+    #[serde(default)]
+    sha256: String,
+    #[serde(default)]
+    size: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct RuntimeBundle {
+    #[serde(default)]
+    components: Vec<BundleComponent>,
+}
+
+struct ComponentPlan {
+    name: String,
+    manifest: PackManifest,
+    sha256: String,
+    size: Option<u64>,
 }
 
 fn curl_program() -> &'static str {
@@ -432,7 +480,7 @@ fn download_part(url: &str, target: &Path, size: Option<u64>) -> Result<(), Stri
 }
 
 fn runtime_dir(_app: &tauri::AppHandle) -> PathBuf {
-    install_root().join("runtime")
+    runtime_root()
 }
 
 fn find_7zr(app: &tauri::AppHandle) -> Option<PathBuf> {
@@ -481,9 +529,14 @@ fn platform_tag() -> &'static str {
 fn runtime_status(app: tauri::AppHandle) -> RuntimeStatus {
     let dir = runtime_dir(&app);
     let frozen = dir.join(engine_exe_name());
-    let py = dir.join(if cfg!(target_os = "windows") { "python.exe" } else { "python" });
+    let py = dir.join(python_exe_name());
     let script = dir.join("sidecar").join("app.py");
-    let installed = frozen.exists() || (py.exists() && script.exists());
+    let deps = dir.join("deps");
+    let split_ready = py.exists()
+        && script.exists()
+        && deps.join("core").is_dir()
+        && deps.join("torch").is_dir();
+    let installed = frozen.exists() || split_ready;
     RuntimeStatus {
         installed,
         path: if frozen.exists() { frozen } else { py }.to_string_lossy().to_string(),
@@ -509,6 +562,371 @@ async fn install_runtime(
     result
 }
 
+fn parse_json<T>(text: &str) -> Result<T, String>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    serde_json::from_str(text.trim_start_matches('\u{feff}').trim()).map_err(|e| e.to_string())
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn ensure_manifest(manifest: &PackManifest, label: &str) -> Result<(), String> {
+    if manifest.parts.is_empty() {
+        return Err(format!("{label} has no parts"));
+    }
+    if manifest.parts.iter().any(|part| part.url.trim().is_empty()) {
+        return Err(format!("{label} has an empty part URL"));
+    }
+    Ok(())
+}
+
+fn download_json(url: &str, target: &Path) -> Result<String, String> {
+    download_url(url, target)?;
+    let text = fs::read_to_string(target).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(target);
+    Ok(text)
+}
+
+/// Parse either a runtime bundle (base/core/torch components) or a legacy
+/// single-pack manifest. A direct .7z URL is also accepted for compatibility.
+fn resolve_runtime_plan(
+    data_dir: &Path,
+    url: &str,
+    sha256: Option<String>,
+) -> Result<Vec<ComponentPlan>, String> {
+    let url = url.trim();
+    if !url.to_lowercase().ends_with(".json") {
+        let manifest = PackManifest {
+            sha256: sha256.unwrap_or_default().trim().to_string(),
+            size: None,
+            parts: vec![PackPart {
+                url: url.to_string(),
+                size: None,
+            }],
+        };
+        let expected = manifest.sha256.clone();
+        return Ok(vec![ComponentPlan {
+            name: "runtime".into(),
+            manifest,
+            sha256: expected,
+            size: None,
+        }]);
+    }
+
+    let text = download_json(url, &data_dir.join("runtime-install.json"))?;
+    let value: serde_json::Value = parse_json(&text)?;
+    if value.get("components").is_none() {
+        let manifest: PackManifest = serde_json::from_value(value).map_err(|e| e.to_string())?;
+        ensure_manifest(&manifest, "runtime manifest")?;
+        let mut expected = sha256.unwrap_or_default().trim().to_string();
+        if expected.is_empty() {
+            expected = manifest.sha256.trim().to_string();
+        }
+        let size = manifest.size;
+        return Ok(vec![ComponentPlan {
+            name: "runtime".into(),
+            manifest,
+            sha256: expected,
+            size,
+        }]);
+    }
+
+    let bundle: RuntimeBundle = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    if bundle.components.is_empty() {
+        return Err("runtime bundle has no components".into());
+    }
+    let mut plans: Vec<ComponentPlan> = Vec::new();
+    for component in bundle.components {
+        let name = component.name.trim().to_lowercase();
+        if !matches!(name.as_str(), "base" | "core" | "torch") {
+            return Err(format!("unknown runtime component: {}", component.name));
+        }
+        if plans.iter().any(|plan| plan.name == name) {
+            return Err(format!("duplicate runtime component: {name}"));
+        }
+        let manifest_url = component.manifest.trim();
+        if manifest_url.is_empty() {
+            return Err(format!("{name} component manifest URL is empty"));
+        }
+        let text = download_json(
+            manifest_url,
+            &data_dir.join(format!("runtime-{name}-manifest.json")),
+        )?;
+        let manifest: PackManifest = parse_json(&text)?;
+        ensure_manifest(&manifest, &format!("{name} manifest"))?;
+        let manifest_sha = manifest.sha256.trim().to_lowercase();
+        let bundle_sha = component.sha256.trim().to_lowercase();
+        if !manifest_sha.is_empty() && !bundle_sha.is_empty() && manifest_sha != bundle_sha {
+            return Err(format!("{name} manifest sha256 does not match runtime-bundle.json"));
+        }
+        if let (Some(manifest_size), Some(bundle_size)) = (manifest.size, component.size) {
+            if manifest_size != bundle_size {
+                return Err(format!("{name} manifest size does not match runtime-bundle.json"));
+            }
+        }
+        let expected = if !manifest_sha.is_empty() {
+            manifest_sha
+        } else {
+            bundle_sha
+        };
+        if !valid_sha256(&expected) {
+            return Err(format!("{name} component is missing a valid sha256"));
+        }
+        let size = manifest.size.or(component.size);
+        plans.push(ComponentPlan {
+            name,
+            manifest,
+            sha256: expected,
+            size,
+        });
+    }
+    for required in ["base", "core", "torch"] {
+        if !plans.iter().any(|plan| plan.name == required) {
+            return Err(format!("runtime bundle is missing the {required} component"));
+        }
+    }
+    plans.sort_by_key(|plan| match plan.name.as_str() {
+        "base" => 0,
+        "core" => 1,
+        _ => 2,
+    });
+    Ok(plans)
+}
+
+fn component_progress(downloaded: u64, total: u64) -> u8 {
+    if total == 0 {
+        return 15;
+    }
+    (6 + downloaded.saturating_mul(84) / total).min(92) as u8
+}
+
+fn download_component(
+    app: &tauri::AppHandle,
+    data_dir: &Path,
+    plan: &ComponentPlan,
+    downloaded: &mut u64,
+    total: u64,
+) -> Result<PathBuf, String> {
+    let pack = data_dir.join(format!("runtime-{}.7z", plan.name));
+    let _ = fs::remove_file(&pack);
+    let mut output = fs::File::create(&pack).map_err(|e| e.to_string())?;
+    let part_count = plan.manifest.parts.len();
+    for (index, part) in plan.manifest.parts.iter().enumerate() {
+        let part_path = data_dir.join(format!("runtime-{}-part-{index:02}.bin", plan.name));
+        let _ = fs::remove_file(&part_path);
+        download_part(part.url.trim(), &part_path, part.size)?;
+        let actual_size = fs::metadata(&part_path).map_err(|e| e.to_string())?.len();
+        if let Some(expected_size) = part.size {
+            if actual_size != expected_size {
+                let _ = fs::remove_file(&part_path);
+                return Err(format!(
+                    "{} part {index} size mismatch: {actual_size} != {expected_size}",
+                    plan.name
+                ));
+            }
+        }
+        let mut input = fs::File::open(&part_path).map_err(|e| e.to_string())?;
+        std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+        drop(input);
+        let _ = fs::remove_file(&part_path);
+        *downloaded = downloaded.saturating_add(actual_size);
+        emit_runtime_progress(
+            app,
+            component_progress(*downloaded, total),
+            &format!(
+                "Downloading {} ({}/{})",
+                plan.name,
+                index + 1,
+                part_count
+            ),
+        );
+    }
+    drop(output);
+
+    if let Some(expected_size) = plan.size {
+        let actual_size = fs::metadata(&pack).map_err(|e| e.to_string())?.len();
+        if actual_size != expected_size {
+            let _ = fs::remove_file(&pack);
+            return Err(format!(
+                "{} pack size mismatch: {actual_size} != {expected_size}",
+                plan.name
+            ));
+        }
+    }
+    if !plan.sha256.trim().is_empty() {
+        emit_runtime_progress(app, 92, &format!("Verifying {}", plan.name));
+        let actual = sha256_file(&pack)?;
+        if !actual.eq_ignore_ascii_case(plan.sha256.trim()) {
+            let _ = fs::remove_file(&pack);
+            return Err(format!("{} sha256 mismatch: {actual}", plan.name));
+        }
+    }
+    Ok(pack)
+}
+
+fn extract_7zr(seven: &Path, pack: &Path, dest: &Path) -> Result<(), String> {
+    fs::create_dir_all(dest).map_err(|e| e.to_string())?;
+    let mut command = Command::new(seven);
+    command
+        .arg("x")
+        .arg(pack)
+        .arg(format!("-o{}", dest.display()))
+        .arg("-y")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let status = command
+        .status()
+        .map_err(|e| format!("7zr failed: {e}"))?;
+    if !status.success() {
+        return Err(format!("7zr extract failed: {status}"));
+    }
+    Ok(())
+}
+
+fn move_dir_contents(from: &Path, to: &Path) -> Result<(), String> {
+    fs::create_dir_all(to).map_err(|e| e.to_string())?;
+    for entry in fs::read_dir(from).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        fs::rename(entry.path(), to.join(entry.file_name())).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Base pack layout is `python/` + `sidecar/`. The Python payload is flattened
+/// into <runtime> so the runtime is <runtime>\\python.exe with <runtime>\\sidecar.
+fn install_runtime_base(
+    seven: &Path,
+    pack: &Path,
+    runtime: &Path,
+    staging: &Path,
+) -> Result<(), String> {
+    let _ = fs::remove_dir_all(staging);
+    extract_7zr(seven, pack, staging)?;
+    let python_dir = staging.join("python");
+    let has_python_dir = python_dir.is_dir();
+    let _ = fs::remove_dir_all(runtime);
+    fs::create_dir_all(runtime).map_err(|e| e.to_string())?;
+    if has_python_dir {
+        move_dir_contents(&python_dir, runtime)?;
+        for entry in fs::read_dir(staging).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            if entry.file_name().to_string_lossy() == "python" {
+                continue;
+            }
+            fs::rename(entry.path(), runtime.join(entry.file_name()))
+                .map_err(|e| e.to_string())?;
+        }
+    } else {
+        move_dir_contents(staging, runtime)?;
+    }
+    let _ = fs::remove_dir_all(staging);
+    let python = runtime.join(python_exe_name());
+    if !python.exists() {
+        return Err(format!("runtime base is missing {}", python.display()));
+    }
+    Ok(())
+}
+
+fn contains_wheel(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if contains_wheel(&path) {
+                return true;
+            }
+        } else if path
+            .extension()
+            .map(|ext| ext.eq_ignore_ascii_case("whl"))
+            .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Wheel packs are archives rooted at `core/` or `torch/`, extracted under
+/// <runtime>\\deps so bootstrap.py finds <runtime>\\deps\\{core,torch}.
+fn install_runtime_deps(
+    seven: &Path,
+    pack: &Path,
+    runtime: &Path,
+    kind: &str,
+) -> Result<(), String> {
+    let deps = runtime.join("deps");
+    let target = deps.join(kind);
+    let _ = fs::remove_dir_all(&target);
+    fs::create_dir_all(&deps).map_err(|e| e.to_string())?;
+    extract_7zr(seven, pack, &deps)?;
+    if !target.is_dir() {
+        return Err(format!("{kind} pack did not contain {kind}/"));
+    }
+    if !contains_wheel(&target) {
+        return Err(format!("{kind} pack contains no .whl files"));
+    }
+    Ok(())
+}
+
+fn install_legacy_pack(
+    seven: &Path,
+    pack: &Path,
+    runtime: &Path,
+    staging: &Path,
+) -> Result<(), String> {
+    let _ = fs::remove_dir_all(staging);
+    extract_7zr(seven, pack, staging)?;
+    let _ = fs::remove_dir_all(runtime);
+    fs::create_dir_all(runtime).map_err(|e| e.to_string())?;
+    move_dir_contents(staging, runtime)?;
+    let _ = fs::remove_dir_all(staging);
+    Ok(())
+}
+
+fn run_runtime_bootstrap(python: &Path, runtime: &Path, log_path: &Path) -> Result<(), String> {
+    let script = runtime.join("sidecar").join("bootstrap.py");
+    if !script.exists() {
+        return Err(format!("bootstrap script not found: {}", script.display()));
+    }
+    if let Some(parent) = log_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .map_err(|e| e.to_string())?;
+    let log_err = log.try_clone().map_err(|e| e.to_string())?;
+    let mut command = Command::new(python);
+    command
+        .arg(&script)
+        .current_dir(runtime)
+        .env("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+        .env("PYTHONUTF8", "1")
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(log_err));
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let status = command
+        .status()
+        .map_err(|e| format!("bootstrap failed to start: {e}"))?;
+    if !status.success() {
+        return Err(format!(
+            "python bootstrap failed: {status}. Log: {}\n{}",
+            log_path.display(),
+            log_tail(log_path, 12)
+        ));
+    }
+    Ok(())
+}
+
 fn install_runtime_blocking(
     app: &tauri::AppHandle,
     state: &EngineState,
@@ -521,82 +939,67 @@ fn install_runtime_blocking(
     emit_runtime_progress(app, 2, "Preparing runtime");
     let data_dir = install_root();
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
-    let pack = data_dir.join("runtime-pack.7z");
-    let mut expected = sha256.unwrap_or_default();
-    let mut parts = vec![(url.trim().to_string(), None)];
-    if url.trim().to_lowercase().ends_with(".json") {
-        emit_runtime_progress(app, 5, "Downloading manifest");
-        let manifest_path = data_dir.join("runtime-manifest.json");
-        download_url(url.trim(), &manifest_path)?;
-        let text = fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
-        let text = text.trim_start_matches('\u{feff}');
-        let manifest: PackManifest = serde_json::from_str(text).map_err(|e| e.to_string())?;
-        if !manifest.sha256.is_empty() {
-            expected = manifest.sha256;
-        }
-        parts = manifest.parts.into_iter().map(|part| (part.url, part.size)).collect();
-        let _ = fs::remove_file(&manifest_path);
+    emit_runtime_progress(app, 4, "Reading runtime bundle");
+    let plans = resolve_runtime_plan(&data_dir, url.trim(), sha256)?;
+    let bundle_install = plans.iter().any(|plan| plan.name != "runtime");
+    let total: u64 = plans.iter().filter_map(|plan| plan.size).sum();
+    let mut downloaded = 0u64;
+    let mut packs = Vec::new();
+    for plan in &plans {
+        emit_runtime_progress(
+            app,
+            component_progress(downloaded, total),
+            &format!("Downloading {} runtime component", plan.name),
+        );
+        packs.push(download_component(
+            app,
+            &data_dir,
+            plan,
+            &mut downloaded,
+            total,
+        )?);
     }
-    emit_runtime_progress(app, 10, "Downloading runtime parts");
-    let total_parts = parts.len().max(1);
-    let mut output = fs::File::create(&pack).map_err(|e| e.to_string())?;
-    for (index, (part_url, part_size)) in parts.iter().enumerate() {
-        let part = data_dir.join(format!("runtime-part-{index:02}.bin"));
-        download_part(part_url, &part, *part_size)?;
-        if let Some(expected_size) = part_size {
-            let actual_size = fs::metadata(&part).map_err(|e| e.to_string())?.len();
-            if actual_size != *expected_size {
-                let _ = fs::remove_file(&part);
-                return Err(format!(
-                    "runtime part {index} size mismatch: {actual_size} != {expected_size}"
-                ));
-            }
-        }
-        let mut input = fs::File::open(&part).map_err(|e| e.to_string())?;
-        std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
-        let _ = fs::remove_file(&part);
-        emit_runtime_progress(app, 10 + (((index + 1) * 55) / total_parts) as u8, "Downloading runtime parts");
-    }
-    drop(output);
-    emit_runtime_progress(app, 68, "Verifying runtime");
-    if !expected.trim().is_empty() {
-        let actual = sha256_file(&pack)?;
-        if actual.to_lowercase() != expected.trim().to_lowercase() {
-            let _ = fs::remove_file(&pack);
-            return Err(format!("runtime sha256 mismatch: {actual}"));
-        }
-    }
-    emit_runtime_progress(app, 78, "Extracting runtime");
-    let seven = find_7zr(&app).ok_or("7zr.exe not found")?;
-    let target = runtime_dir(&app);
+
+    let seven = find_7zr(app).ok_or("7zr.exe not found")?;
+    let target = runtime_dir(app);
     let staging = data_dir.join("runtime-staging");
-    let _ = fs::remove_dir_all(&staging);
-    fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
-    let mut extract = Command::new(&seven);
-    extract
-        .arg("x")
-        .arg(&pack)
-        .arg(format!("-o{}", staging.display()))
-        .arg("-y");
-    #[cfg(target_os = "windows")]
-    extract.creation_flags(CREATE_NO_WINDOW);
-    let status = extract
-        .status()
-        .map_err(|e| format!("7zr failed: {e}"))?;
-    let _ = fs::remove_file(&pack);
-    if !status.success() {
-        return Err(format!("runtime extract failed: {status}"));
+    stop_engine(state);
+    if bundle_install {
+        let base_index = plans
+            .iter()
+            .position(|plan| plan.name == "base")
+            .ok_or("runtime bundle is missing base")?;
+        let core_index = plans
+            .iter()
+            .position(|plan| plan.name == "core")
+            .ok_or("runtime bundle is missing core")?;
+        let torch_index = plans
+            .iter()
+            .position(|plan| plan.name == "torch")
+            .ok_or("runtime bundle is missing torch")?;
+        emit_runtime_progress(app, 94, "Installing runtime base");
+        install_runtime_base(&seven, &packs[base_index], &target, &staging)?;
+        emit_runtime_progress(app, 96, "Installing core dependencies");
+        install_runtime_deps(&seven, &packs[core_index], &target, "core")?;
+        emit_runtime_progress(app, 97, "Installing torch dependencies");
+        install_runtime_deps(&seven, &packs[torch_index], &target, "torch")?;
+        for pack in &packs {
+            let _ = fs::remove_file(pack);
+        }
+        emit_runtime_progress(app, 98, "Installing Python dependencies");
+        let logs_dir = install_root().join("data").join("logs");
+        fs::create_dir_all(&logs_dir).map_err(|e| e.to_string())?;
+        let python = target.join(python_exe_name());
+        run_runtime_bootstrap(&python, &target, &logs_dir.join("bootstrap.log"))?;
+        emit_runtime_progress(app, 99, "Starting engine");
+    } else {
+        emit_runtime_progress(app, 90, "Extracting runtime");
+        install_legacy_pack(&seven, &packs[0], &target, &staging)?;
+        for pack in &packs {
+            let _ = fs::remove_file(pack);
+        }
+        emit_runtime_progress(app, 99, "Starting engine");
     }
-    emit_runtime_progress(app, 92, "Installing runtime files");
-    let _ = fs::remove_dir_all(&target);
-    fs::create_dir_all(&target).map_err(|e| e.to_string())?;
-    for entry in fs::read_dir(&staging).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let dest = target.join(entry.file_name());
-        fs::rename(entry.path(), dest).map_err(|e| e.to_string())?;
-    }
-    let _ = fs::remove_dir_all(&staging);
-    emit_runtime_progress(app, 99, "Starting engine");
     start_engine(app, state)
 }
 
@@ -690,4 +1093,106 @@ pub fn run() {
                 stop_engine(state.inner());
             }
         });
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+
+    fn seven_zip() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sidecar")
+            .join("7zr.exe")
+    }
+
+    fn make_archive(source: &Path, pack: &Path) {
+        let seven = seven_zip();
+        assert!(seven.exists(), "missing 7zr: {}", seven.display());
+        let status = Command::new(seven)
+            .arg("a")
+            .arg("-t7z")
+            .arg(pack)
+            .arg(source)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("failed to run 7zr");
+        assert!(status.success(), "7zr failed for {}", source.display());
+    }
+
+    fn test_root(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "voicesmith-{name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn parses_runtime_bundle() {
+        let json = r#"{
+            "version": "0.2.3",
+            "platform": "windows-x64",
+            "components": [
+                {"name": "base", "manifest": "https://example/base.json", "sha256": "aa", "size": 10},
+                {"name": "core", "manifest": "https://example/core.json", "sha256": "bb", "size": 20},
+                {"name": "torch", "manifest": "https://example/torch.json", "sha256": "cc", "size": 30}
+            ]
+        }"#;
+        let value: serde_json::Value = parse_json(json).unwrap();
+        assert!(value.get("components").is_some());
+        let bundle: RuntimeBundle = serde_json::from_value(value).unwrap();
+        assert_eq!(bundle.components.len(), 3);
+        assert_eq!(bundle.components[0].name, "base");
+    }
+
+    #[test]
+    fn sha_and_progress_helpers() {
+        assert!(valid_sha256(&"a".repeat(64)));
+        assert!(!valid_sha256("abc"));
+        assert!(!valid_sha256(&"g".repeat(64)));
+        assert_eq!(component_progress(0, 0), 15);
+        assert_eq!(component_progress(0, 100), 6);
+        assert!(component_progress(100, 100) <= 92);
+        assert!(component_progress(100, 100) > 80);
+    }
+
+    #[test]
+    fn installs_base_and_deps_layout() {
+        let root = test_root("runtime-layout");
+        let seven = seven_zip();
+
+        fs::create_dir_all(root.join("base/python")).unwrap();
+        fs::write(root.join("base/python/python.exe"), b"stub").unwrap();
+        fs::write(root.join("base/python/python311._pth"), b"Lib").unwrap();
+        fs::create_dir_all(root.join("base/sidecar")).unwrap();
+        fs::write(root.join("base/sidecar/app.py"), b"print('app')").unwrap();
+        let base_pack = root.join("base.7z");
+        make_archive(&root.join("base").join("*"), &base_pack);
+
+        let runtime = root.join("runtime");
+        install_runtime_base(&seven, &base_pack, &runtime, &root.join("staging")).unwrap();
+        assert!(runtime.join("python.exe").is_file());
+        assert!(runtime.join("python311._pth").is_file());
+        assert!(runtime.join("sidecar/app.py").is_file());
+
+        for kind in ["core", "torch"] {
+            let stage = root.join(format!("{kind}-stage"));
+            fs::create_dir_all(stage.join(kind)).unwrap();
+            fs::write(
+                stage.join(kind).join(format!("{kind}-1.0-py3-none-any.whl")),
+                b"wheel",
+            )
+            .unwrap();
+            let pack = root.join(format!("{kind}.7z"));
+            make_archive(&stage.join("*"), &pack);
+            install_runtime_deps(&seven, &pack, &runtime, kind).unwrap();
+            assert!(contains_wheel(&runtime.join("deps").join(kind)));
+        }
+
+        let _ = fs::remove_dir_all(root);
+    }
 }

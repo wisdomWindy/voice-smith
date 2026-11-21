@@ -15,7 +15,8 @@ permissions:
   contents: write
 
 # Requires a self-hosted Windows runner with:
-#   - Python 3.11 + torch/cu128 venv able to rebuild the sidecar
+#   - Python 3.11 + network access for the embeddable Python base and get-pip
+#   - prepared wheel packs in .cache/wheels-core and .cache/wheels-torch
 #   - GPT-SoVITS engine + V4 weights + faster-whisper cache
 #   - 7zr.exe and Inno Setup 6
 jobs:

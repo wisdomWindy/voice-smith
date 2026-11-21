@@ -87,23 +87,40 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - name: Install
-        run: |
-          python -m pip install --upgrade pip
-          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
-          pip install -r sidecar/requirements.txt pyinstaller
-      - name: Build runtime
-        working-directory: sidecar
-        run: pyinstaller --noconfirm --clean voicesmith-engine.spec
-      - name: Pack and split
+      - name: Build embedded Python base
+        shell: pwsh
+        run: ./scripts/build-runtime-base.ps1
+      - name: Download core wheels
         shell: pwsh
         run: |
-          & "scripts\build-runtime-pack.ps1" -RuntimeDir "$PWD\sidecar\dist\voicesmith-engine" -OutFile "$PWD\VoiceSmith-Runtime-windows-x64.7z" -SevenZip "$PWD\sidecar\7zr.exe"
-          python scripts/ci/split_pack.py VoiceSmith-Runtime-windows-x64.7z runtime-windows-x64
+          python -m pip download --dest .cache/wheels-core `
+            -r sidecar/requirements.txt `
+            librosa scikit-learn soundfile scipy numpy numba
+      - name: Download torch wheels
+        shell: pwsh
+        run: |
+          python -m pip download --dest .cache/wheels-torch `
+            --index-url https://download.pytorch.org/whl/cu128 `
+            --extra-index-url https://pypi.org/simple `
+            torch torchaudio
+      - name: Pack runtime components
+        shell: pwsh
+        run: |
+          ./scripts/build-deps-pack.ps1 -Kind core -WheelsDir .cache/wheels-core
+          ./scripts/build-deps-pack.ps1 -Kind torch -WheelsDir .cache/wheels-torch
+      - name: Split components and generate bundle
+        shell: pwsh
+        run: ./scripts/split-release-assets.ps1 -Version $env:VERSION -SkipAssets
       - name: Upload
         shell: pwsh
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
-        run: gh release upload "v$env:VERSION" runtime-windows-x64.part* runtime-windows-x64-manifest.json --repo "${{ github.repository }}" --clobber
+        run: |
+          $files = Get-ChildItem dist-assets -File | Where-Object {
+            $_.Name -match '^(runtime-base|deps-core|deps-torch)\.part\d+$' -or
+            $_.Name -match '^(runtime-base|deps-core|deps-torch)-manifest\.json$' -or
+            $_.Name -eq 'runtime-bundle.json'
+          } | Select-Object -ExpandProperty FullName
+          gh release upload "v$env:VERSION" @files --repo "${{ github.repository }}" --clobber
 
   runtime-macos:
     needs: prepare
@@ -172,7 +189,10 @@ jobs:
             "VoiceSmith-${VERSION}-windows-x64-setup.exe" \
             "VoiceSmith-${VERSION}-macos-intel.dmg" \
             "VoiceSmith-${VERSION}-macos-apple-silicon.dmg" \
-            "runtime-windows-x64-manifest.json" \
+            "runtime-bundle.json" \
+            "runtime-base-manifest.json" \
+            "deps-core-manifest.json" \
+            "deps-torch-manifest.json" \
             "runtime-macos-intel-manifest.json" \
             "runtime-macos-arm64-manifest.json" \
             "assets-windows-x64-manifest.json" \

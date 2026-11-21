@@ -31,7 +31,7 @@ No URL is hard-coded in the build, because the asset pack is not hosted by Voice
 
 ## Install flow
 
-1. Main installer: `VoiceSmith-0.1.0-Setup.exe` (2.15GB).
+1. Thin installer: `VoiceSmith-<version>-Setup.exe` (see `thin-distribution.md`).
 2. First launch -> usage terms -> **安装离线资产** dialog.
 3. Paste URL -> **下载并安装离线资产**.
 4. Sidecar downloads to `%APPDATA%\com.voicesmith.desktop\asset-pack.7z`,
