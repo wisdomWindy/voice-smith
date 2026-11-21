@@ -161,9 +161,17 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         install_root().join("data")
     };
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
-    let packaged = find_packaged_engine(&resource_root, &dev_root, &install_root());
+    let runtime_root = install_root().join("runtime");
+    let embedded_python = runtime_root.join(if cfg!(target_os = "windows") { "python.exe" } else { "python" });
+    let embedded_script = runtime_root.join("sidecar").join("app.py");
+    let embedded_ready = embedded_python.exists() && embedded_script.exists();
+    let packaged = if embedded_ready {
+        None
+    } else {
+        find_packaged_engine(&resource_root, &dev_root, &install_root())
+    };
     let dev_script = dev_root.join("sidecar").join("app.py");
-    if packaged.is_none() && !(cfg!(debug_assertions) && dev_script.exists()) {
+    if !embedded_ready && packaged.is_none() && !(cfg!(debug_assertions) && dev_script.exists()) {
         let mut info = state.info.lock().unwrap();
         *info = EngineInfo {
             port: 0,
@@ -187,7 +195,11 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         .map_err(|e| e.to_string())?;
     let log_err = log.try_clone().map_err(|e| e.to_string())?;
 
-    let (working_root, mut command) = if let Some(exe) = packaged {
+    let (working_root, mut command) = if embedded_ready {
+        let mut command = Command::new(&embedded_python);
+        command.arg(&embedded_script);
+        (runtime_root.clone(), command)
+    } else if let Some(exe) = packaged {
         let root = exe.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| dev_root.clone());
         (root, Command::new(&exe))
     } else {
@@ -467,10 +479,14 @@ fn platform_tag() -> &'static str {
 
 #[tauri::command]
 fn runtime_status(app: tauri::AppHandle) -> RuntimeStatus {
-    let path = runtime_dir(&app).join(engine_exe_name());
+    let dir = runtime_dir(&app);
+    let frozen = dir.join(engine_exe_name());
+    let py = dir.join(if cfg!(target_os = "windows") { "python.exe" } else { "python" });
+    let script = dir.join("sidecar").join("app.py");
+    let installed = frozen.exists() || (py.exists() && script.exists());
     RuntimeStatus {
-        installed: path.exists(),
-        path: path.to_string_lossy().to_string(),
+        installed,
+        path: if frozen.exists() { frozen } else { py }.to_string_lossy().to_string(),
     }
 }
 
