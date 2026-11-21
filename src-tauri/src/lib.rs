@@ -329,6 +329,74 @@ fn download_url(url: &str, target: &Path) -> Result<(), String> {
     Err(last_error)
 }
 
+fn download_range(url: &str, target: &Path, start: u64, end: u64) -> Result<(), String> {
+    let mut curl = Command::new(curl_program());
+    curl.args([
+        "-L",
+        "--fail",
+        "--http1.1",
+        "--retry",
+        "8",
+        "--retry-delay",
+        "3",
+        "--retry-all-errors",
+        "--connect-timeout",
+        "20",
+        "--speed-time",
+        "90",
+        "--speed-limit",
+        "1024",
+        "--range",
+        &format!("{start}-{end}"),
+        "-o",
+    ])
+    .arg(target)
+    .arg(url);
+    #[cfg(target_os = "windows")]
+    curl.creation_flags(CREATE_NO_WINDOW);
+    let status = curl.status().map_err(|e| format!("curl failed: {e}"))?;
+    if !status.success() {
+        return Err(format!("range download failed: {status}"));
+    }
+    Ok(())
+}
+
+fn download_part(url: &str, target: &Path, size: Option<u64>) -> Result<(), String> {
+    let Some(size) = size else {
+        return download_url(url, target);
+    };
+    if size < 900 * 1024 * 1024 {
+        return download_url(url, target);
+    }
+    let half = size / 2;
+    let left = target.with_extension("part-a");
+    let right = target.with_extension("part-b");
+    let _ = fs::remove_file(&left);
+    let _ = fs::remove_file(&right);
+    let result = std::thread::scope(|scope| {
+        let a = scope.spawn(|| download_range(url, &left, 0, half - 1));
+        let b = scope.spawn(|| download_range(url, &right, half, size - 1));
+        let first = a.join().map_err(|_| "range worker panicked".to_string())?;
+        let second = b.join().map_err(|_| "range worker panicked".to_string())?;
+        first?;
+        second?;
+        Ok::<(), String>(())
+    });
+    if let Err(error) = result {
+        let _ = fs::remove_file(&left);
+        let _ = fs::remove_file(&right);
+        return Err(error);
+    }
+    let mut output = fs::File::create(target).map_err(|e| e.to_string())?;
+    for chunk in [&left, &right] {
+        let mut input = fs::File::open(chunk).map_err(|e| e.to_string())?;
+        std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+    }
+    let _ = fs::remove_file(&left);
+    let _ = fs::remove_file(&right);
+    Ok(())
+}
+
 fn runtime_dir(_app: &tauri::AppHandle) -> PathBuf {
     install_root().join("runtime")
 }
@@ -436,7 +504,7 @@ fn install_runtime_blocking(
     let mut output = fs::File::create(&pack).map_err(|e| e.to_string())?;
     for (index, (part_url, part_size)) in parts.iter().enumerate() {
         let part = data_dir.join(format!("runtime-part-{index:02}.bin"));
-        download_url(part_url, &part)?;
+        download_part(part_url, &part, *part_size)?;
         if let Some(expected_size) = part_size {
             let actual_size = fs::metadata(&part).map_err(|e| e.to_string())?.len();
             if actual_size != *expected_size {
