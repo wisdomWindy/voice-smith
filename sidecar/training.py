@@ -174,7 +174,7 @@ def _base_env() -> dict[str, str]:
     env["PYTHONIOENCODING"] = "utf-8"
     env["HF_ENDPOINT"] = env.get("HF_ENDPOINT", "https://hf-mirror.com")
     env["OMP_NUM_THREADS"] = "4"
-    env["PATH"] = f"{ENGINE / 'runtime'}{os.pathsep}{ENGINE}{os.pathsep}{env.get('PATH', '')}"
+    env["PATH"] = f"{ENGINE}{os.pathsep}{env.get('PATH', '')}"
     return env
 
 

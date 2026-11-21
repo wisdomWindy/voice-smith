@@ -37,7 +37,7 @@ def build_config(engine: Path) -> Path:
             "bert_base_path": "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",
         }
     )
-    config_path = engine / "runtime" / "tts_infer_voicesmith.yaml"
+    config_path = engine / "tts_infer_voicesmith.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(yaml.safe_dump({"custom": custom}, allow_unicode=True), encoding="utf-8")
     return config_path
@@ -55,7 +55,7 @@ def main() -> int:
     args = parser.parse_args()
     engine = Path(args.engine).resolve()
     os.chdir(engine)
-    os.environ["PATH"] = f"{engine / 'runtime'}{os.pathsep}{engine}{os.pathsep}{os.environ.get('PATH', '')}"
+    os.environ["PATH"] = f"{engine}{os.pathsep}{os.environ.get('PATH', '')}"
     sys.path.insert(0, str(engine))
     sys.path.insert(0, str(engine / "GPT_SoVITS"))
 
