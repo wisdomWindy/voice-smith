@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, OpenOptions};
 use std::io::Read;
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -237,7 +237,29 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
     }
     *state.child.lock().unwrap() = Some(child);
 
-    Ok(state.info.lock().unwrap().clone())
+    let address = format!("127.0.0.1:{port}");
+    for _ in 0..120 {
+        if TcpStream::connect(&address).is_ok() {
+            return Ok(state.info.lock().unwrap().clone());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    let tail = fs::read_to_string(&log_path)
+        .unwrap_or_default()
+        .lines()
+        .rev()
+        .take(12)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n");
+    stop_engine(state);
+    Err(format!(
+        "sidecar did not start. Log: {}\n{}",
+        log_path.display(),
+        tail
+    ))
 }
 
 #[tauri::command]
