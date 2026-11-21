@@ -10,7 +10,7 @@ GPT-SoVITS 在本地跑推理与训练，零服务器成本，默认零遥测。
 - **M2 完成**：V5 Turbo 真实推理（48k）；持久化 worker 冷启动约 20s、热任务复用；UI 任务成功并可下载 WAV。
 - **M3 完成**：数据集 `.list` → QC → BERT/HuBERT/SV/语义 → S1/S2 训练 → 自动发布微调音色 → 真实合成；S1 225 步、S2 192 步已验证，S1 断点恢复已修复。
 - **模型资产**：7 个关键权重带 sha256；校验页可显示 `hash` 失败，导入后自动复核。
-- **离线资产包 + 运行时**：主安装器 **3.5MB**；首启先下载 `VoiceSmith-Runtime.7z`（2.34GiB），再下载 `VoiceSmith-Offline-Assets.7z`（3.02GiB），sha256 校验、7zr 解压。
+- **离线资产包 + 运行时**：主安装器 **3.5MB**；首启先下载 `runtime-bundle.json` 与 base/core/torch 三个运行时组件（嵌入式 Python + wheel），`pip` 离线安装后启动 sidecar；再下载 `VoiceSmith-Offline-Assets.7z`（3.02GiB），全程 sha256 校验、7zr 解压。
 - **合规与支持**：首启使用规约；设置页导出诊断包（版本/doctor/日志，不含音频/模型）。
 - **ASR**：faster-whisper small 本地转写，支持文件夹批量生成训练 `.list`。
 - **长音频切片**：5–15s、48k 单声道；3 分钟测试音频生成 18 段。
@@ -106,30 +106,39 @@ pnpm dev
 ```powershell
 pnpm build
 
-# 1) 冻结 sidecar（约 5.3GB；输出到 C 盘）
+# 1) 冻结 sidecar（仅 macOS 旧路径；约 5.3GB，输出到 C 盘）
 scripts\build-engine.ps1
 
 # 2) 薄安装器（不含运行时）
 pnpm tauri build --no-bundle
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" scripts\voicesmith.iss
 
-# 3) 运行时包（约 2.34GiB）
-scripts\build-runtime-pack.ps1
+# 3) 运行时组件（嵌入式 Python + wheel）
+scripts\build-runtime-base.ps1
+scripts\build-deps-pack.ps1 -Kind core  -WheelsDir .cache\wheels-core
+scripts\build-deps-pack.ps1 -Kind torch -WheelsDir .cache\wheels-torch
 
 # 4) 离线资产包（约 3.02GiB）
 scripts\build-assets-pack.ps1
 
-# 5) 发布到 GitHub Release（需要 gh auth login）
+# 5) 分卷 + runtime-bundle.json
+scripts\split-release-assets.ps1 -Version 0.1.0
+
+# 6) 发布到 GitHub Release（需要 gh auth login）
 scripts\publish-release.ps1 -Version 0.1.0
 ```
 
 产物：
 
 - `dist-assets/VoiceSmith-0.1.0-Setup.exe`（约 3.5MB）
-- `dist-assets/VoiceSmith-Runtime.7z`（约 2.34GiB）
+- `dist-assets/VoiceSmith-Runtime-base.7z`（约 10MB）
+- `dist-assets/VoiceSmith-Deps-core.7z`（约 104MB）
+- `dist-assets/VoiceSmith-Deps-torch.7z`（约 3.05GiB）
+- `dist-assets/runtime-bundle.json` + 三个组件 manifest/分卷
 - `dist-assets/VoiceSmith-Offline-Assets.7z`（约 3.02GiB）
 
-首次启动：安装运行时 → 安装离线资产 → 自动重启 sidecar。
+首次启动：下载运行时 bundle（base → core → torch）→ `bootstrap.py` 安装 wheel →
+启动 sidecar → 安装离线资产 → 自动重启 sidecar。
 
 ## 目录
 

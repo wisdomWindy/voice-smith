@@ -3,7 +3,8 @@ export const RELEASE_TAG = `v${APP_VERSION}`
 export const RELEASE_BASE = `https://github.com/wisdomWindy/voice-smith/releases/download/${RELEASE_TAG}`
 
 export const RUNTIME_MANIFESTS: Record<string, string> = {
-  'windows-x64': `${RELEASE_BASE}/runtime-windows-x64-manifest.json`,
+  // Windows uses the split runtime: embedded Python base + core/torch wheels.
+  'windows-x64': `${RELEASE_BASE}/runtime-bundle.json`,
   'macos-intel': `${RELEASE_BASE}/runtime-macos-intel-manifest.json`,
   'macos-arm64': `${RELEASE_BASE}/runtime-macos-arm64-manifest.json`,
 }

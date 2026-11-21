@@ -15,7 +15,16 @@ def main() -> int:
     if not wheels:
         print("no wheel packs found", file=sys.stderr)
         return 2
-    command = [sys.executable, "-m", "pip", "install", "--no-index", "--no-cache-dir", *wheels]
+    command = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-index",
+        "--no-cache-dir",
+        "--no-warn-script-location",
+        *wheels,
+    ]
     print("installing", len(wheels), "wheels", flush=True)
     return subprocess.call(command)
 
