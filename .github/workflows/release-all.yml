@@ -163,8 +163,21 @@ jobs:
   # assets-<platform>-manifest.json + parts. The installer itself ships the
   # vendored engine source, so this workflow has no v5-engine dependency.
 
+  assets-manifests:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reuse formal V5 weights manifest
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          gh release download v0.2.8 --repo "${{ github.repository }}" -p 'assets-universal-manifest.json' -D base
+          for p in windows-x64 macos-intel macos-arm64; do
+            cp base/assets-universal-manifest.json "assets-$p-manifest.json"
+          done
+          gh release upload "v$VERSION" assets-windows-x64-manifest.json assets-macos-intel-manifest.json assets-macos-arm64-manifest.json --repo "${{ github.repository }}" --clobber
+
   finalize:
-    needs: [installers, runtime-windows, runtime-macos]
+    needs: [installers, runtime-windows, runtime-macos, assets-manifests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
