@@ -1299,7 +1299,7 @@ def main() -> None:
     MODEL_DIR = DATA_DIR / "models"
     init_db()
     training_runner.configure(DATA_DIR, asset_store.ENGINE_ROOT)
-    asr_engine.configure(DATA_DIR)
+    asr_engine.configure(DATA_DIR, asset_store.ENGINE_ROOT)
     uvr5_engine.configure(DATA_DIR, asset_store.ENGINE_ROOT)
     asset_install.configure(DATA_DIR, asset_store.ENGINE_ROOT)
 
