@@ -8,25 +8,33 @@ from pathlib import Path
 
 def main() -> int:
     root = Path(sys.executable).resolve().parent
-    wheels: list[str] = []
-    for folder in (root / "deps" / "core", root / "deps" / "torch"):
-        if folder.is_dir():
-            wheels.extend(str(p) for p in folder.rglob("*.whl"))
-    if not wheels:
+    folders = [root / "deps" / "core", root / "deps" / "torch"]
+    installed = 0
+    for folder in folders:
+        if not folder.is_dir():
+            continue
+        wheels = [str(p) for p in folder.rglob("*.whl")]
+        if not wheels:
+            continue
+        command = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--no-index",
+            "--no-cache-dir",
+            "--no-warn-script-location",
+            *wheels,
+        ]
+        print(f"installing {len(wheels)} wheels from {folder.name}", flush=True)
+        code = subprocess.call(command)
+        if code != 0:
+            return code
+        installed += len(wheels)
+    if installed == 0:
         print("no wheel packs found", file=sys.stderr)
         return 2
-    command = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--no-index",
-        "--no-cache-dir",
-        "--no-warn-script-location",
-        *wheels,
-    ]
-    print("installing", len(wheels), "wheels", flush=True)
-    return subprocess.call(command)
+    return 0
 
 
 if __name__ == "__main__":
