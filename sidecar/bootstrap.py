@@ -29,7 +29,14 @@ def main() -> int:
         print(f"installing {len(wheels)} wheels from {folder.name}", flush=True)
         code = subprocess.call(command)
         if code != 0:
-            return code
+            # Offline pack may miss a source-only dependency (e.g. jieba).
+            # Retry with the public index so bootstrap can still complete.
+            print("offline install failed; retrying with PyPI", flush=True)
+            command = [c for c in command if c != "--no-index"]
+            command += ["--index-url", "https://pypi.org/simple"]
+            code = subprocess.call(command)
+            if code != 0:
+                return code
         installed += len(wheels)
     if installed == 0:
         print("no wheel packs found", file=sys.stderr)
