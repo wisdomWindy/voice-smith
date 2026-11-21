@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -172,6 +172,18 @@ dist-assets/
 
 __pycache__/
 *.pyc
+
+# Vendored engine weight mounts (created at runtime from <data>/assets; never commit)
+vendor/GPT-SoVITS/GPT_SoVITS/pretrained_models/
+vendor/GPT-SoVITS/GPT_SoVITS/text/G2PWModel/
+vendor/GPT-SoVITS/tools/uvr5/uvr5_weights/
+vendor/GPT-SoVITS/tools/asr/models/
+vendor/GPT-SoVITS/tools/AP_BWE_main/24kto48k/
+vendor/GPT-SoVITS/runtime/
+vendor/GPT-SoVITS/tts_infer_*.yaml
+
+# Staged Tauri resources (engine source copy for the installer; generated)
+src-tauri/resources/upstream/GPT-SoVITS/
 
 # Local build caches
 .cache/

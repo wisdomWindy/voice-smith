@@ -17,7 +17,8 @@ permissions:
 # Requires a self-hosted Windows runner with:
 #   - Python 3.11 + network access for the embeddable Python base and get-pip
 #   - prepared wheel packs in .cache/wheels-core and .cache/wheels-torch
-#   - GPT-SoVITS engine + V4 weights + faster-whisper cache
+#   - a GPT-SoVITS weights tree (VOICE_SMITH_WEIGHTS_SRC, e.g. D:\program\GPT-SoVITS-v5)
+#     plus the faster-whisper cache; engine source ships in the installer
 #   - 7zr.exe and Inno Setup 6
 jobs:
   packs:

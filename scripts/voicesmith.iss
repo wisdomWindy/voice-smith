@@ -39,6 +39,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Source: "{#ReleaseDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\src-tauri\icons\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\sidecar\7zr.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\src-tauri\resources\upstream\*"; DestDir: "{app}\resources\upstream"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\docs\release\SBOM.json"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "..\docs\release\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\licenses"; Flags: ignoreversion
 

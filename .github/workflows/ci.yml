@@ -24,11 +24,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Frontend build
         run: pnpm build
+      - name: Vendored engine guard
+        run: |
+          test -f vendor/GPT-SoVITS/GPT_SoVITS/TTS_infer_pack/TTS.py
+          test -f vendor/GPT-SoVITS/LICENSE
+          test -f vendor/GPT-SoVITS/VENDOR_MANIFEST.json
+          # weights and runtime must never be committed
+          test ! -d vendor/GPT-SoVITS/GPT_SoVITS/pretrained_models
+          test ! -d vendor/GPT-SoVITS/runtime
+          ! find vendor/GPT-SoVITS -type f \( -name '*.pth' -o -name '*.ckpt' -o -name '*.onnx' \) | grep -q .
+      - name: Stage engine resources
+        run: pnpm stage:engine
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Compile Python sidecar
-        run: python -m py_compile sidecar/app.py sidecar/training.py sidecar/gpt_worker.py
+        run: python -m compileall -q sidecar
+      - name: Engine path self-check
+        run: python scripts/engine_paths_selfcheck.py
 
   rust:
     runs-on: windows-latest
@@ -37,3 +50,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Cargo check
         run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib

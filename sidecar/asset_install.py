@@ -1,4 +1,20 @@
-"""Download and install the optional offline asset pack."""
+"""Download and install the optional offline asset pack.
+
+The pack only carries **model / tool weights** now. Engine source ships with the
+app (``resources/upstream/GPT-SoVITS``), so an asset pack no longer decides which
+engine version runs.
+
+Supported pack layouts:
+
+  gpt-sovits/...            current layout, copied to ``<data>/assets/gpt-sovits``
+  bin/...                   current layout, copied to ``<data>/assets/bin``
+  engine/GPT-SoVITS/...     legacy monolithic pack: only the weight directories
+                            and ffmpeg are imported, the source half is ignored
+  GPT_SoVITS/...            bare weight tree, copied to ``<data>/assets/gpt-sovits``
+
+Legacy packs are accepted on purpose so existing users can keep their download;
+nothing from an old pack can overwrite the vendored engine source.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +27,8 @@ import threading
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+import engine_paths
 
 _LOCK = threading.Lock()
 _STATE: dict[str, Any] = {
@@ -25,11 +43,19 @@ _STATE: dict[str, Any] = {
 _DATA: Path | None = None
 _ENGINE: Path | None = None
 
+REQUIRED_WEIGHTS: tuple[str, ...] = (
+    "GPT_SoVITS/pretrained_models/s1v3.ckpt",
+    "GPT_SoVITS/pretrained_models/gsv-v5-pretrained/s2Gv5turbo.pth",
+    "GPT_SoVITS/pretrained_models/gsv-v5-pretrained/vocoder.pth",
+)
 
-def configure(data_dir: Path, engine_root: Path) -> None:
+
+def configure(data_dir: Path, engine_root: Path | None = None) -> None:
     global _DATA, _ENGINE
-    _DATA = data_dir
-    _ENGINE = engine_root
+    _DATA = Path(data_dir)
+    os.environ[engine_paths.DATA_ENV] = str(_DATA)
+    _ENGINE = Path(engine_root) if engine_root is not None else engine_paths.engine_root()
+    engine_paths.ensure_mounts(_ENGINE)
 
 
 def _update(**values: Any) -> None:
@@ -37,16 +63,20 @@ def _update(**values: Any) -> None:
         _STATE.update(values)
 
 
+def _missing_weights() -> list[str]:
+    root = engine_paths.weights_root()
+    return [rel for rel in REQUIRED_WEIGHTS if not (root / rel).is_file()]
+
+
 def status() -> dict[str, Any]:
     with _LOCK:
         data = dict(_STATE)
-    engine = _ENGINE
-    required = [
-        engine / "GPT_SoVITS" / "pretrained_models" / "s1v3.ckpt" if engine else None,
-        engine / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth" if engine else None,
-        engine / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "vocoder.pth" if engine else None,
-    ]
-    data["installed"] = all(path and path.exists() for path in required)
+    missing = _missing_weights()
+    data["installed"] = not missing and engine_paths.engine_root().joinpath(
+        "GPT_SoVITS", "TTS_infer_pack", "TTS.py"
+    ).is_file()
+    data["missing"] = missing
+    data["weights_root"] = str(engine_paths.weights_root())
     return data
 
 
@@ -113,17 +143,64 @@ def _download_pack(url: str, target: Path) -> str:
     return str(manifest.get("sha256") or "")
 
 
+def _copy_tree(source: Path, target: Path) -> None:
+    if source.is_dir():
+        shutil.copytree(source, target, dirs_exist_ok=True)
+
+
+def _import_legacy_engine(source_engine: Path) -> int:
+    """Import weights from a pre-vendor pack; ignore its bundled source."""
+    weights = engine_paths.weights_root()
+    copied = 0
+    for rel in engine_paths.WEIGHT_MOUNTS:
+        candidate = source_engine / rel
+        if candidate.is_dir():
+            _copy_tree(candidate, weights / rel)
+            copied += 1
+    for name in ("ffmpeg.exe", "ffprobe.exe"):
+        candidate = source_engine / "runtime" / name
+        if candidate.is_file():
+            target = engine_paths.bin_root() / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(candidate, target)
+    return copied
+
+
 def _install_from_dir(extracted: Path) -> None:
-    assert _DATA is not None and _ENGINE is not None
-    _update(stage="installing", progress=0.9, message="安装引擎与权重")
-    source_engine = extracted / "engine" / "GPT-SoVITS"
-    if not source_engine.exists():
-        raise FileNotFoundError("asset pack missing engine/GPT-SoVITS")
-    shutil.copytree(source_engine, _ENGINE, dirs_exist_ok=True)
+    assert _DATA is not None
+    _update(stage="installing", progress=0.9, message="安装引擎权重与工具")
+    weights = engine_paths.weights_root()
+    bin_root = engine_paths.bin_root()
+    weights.mkdir(parents=True, exist_ok=True)
+    bin_root.mkdir(parents=True, exist_ok=True)
+
+    pack_weights = extracted / "gpt-sovits"
+    legacy_engine = extracted / "engine" / "GPT-SoVITS"
+    bare_weights = extracted / "GPT_SoVITS"
+
+    if pack_weights.is_dir():
+        _copy_tree(pack_weights, weights)
+        _copy_tree(extracted / "bin", bin_root)
+    elif legacy_engine.is_dir():
+        if not _import_legacy_engine(legacy_engine):
+            raise FileNotFoundError("legacy asset pack has no known weight directories")
+    elif bare_weights.is_dir():
+        _copy_tree(extracted, weights)
+        _copy_tree(extracted / "bin", bin_root)
+    else:
+        raise FileNotFoundError(
+            "asset pack has no gpt-sovits/ weight tree (expected gpt-sovits/... or legacy engine/GPT-SoVITS)"
+        )
+
     source_models = extracted / "models" / "faster-whisper"
     if source_models.exists():
         target_models = _DATA / "models" / "faster-whisper"
         shutil.copytree(source_models, target_models, dirs_exist_ok=True)
+
+    engine_paths.ensure_mounts(_ENGINE)
+    missing = _missing_weights()
+    if missing:
+        raise FileNotFoundError("asset pack incomplete, missing: " + ", ".join(missing))
 
 
 def _run(url: str, expected: str) -> None:

@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "stage:engine": "node scripts/stage-engine.mjs",
+    "check:engine": "node scripts/stage-engine.mjs --check",
     "preview": "vite preview",
     "tauri": "tauri"
   },

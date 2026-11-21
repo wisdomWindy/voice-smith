@@ -1,7 +1,9 @@
-"""Real GPT-SoVITS inference worker.
+"""One-shot GPT-SoVITS inference (debug / smoke tests).
 
-Run in its own process with cwd = engine root so GPT-SoVITS relative paths work.
-The sidecar spawns this only when the engine assets + torch are ready.
+Engine source comes from ``vendor/GPT-SoVITS``; weights come from
+``<data>/assets`` and are mounted into the engine tree by
+``engine_paths.ensure_mounts``. The sidecar normally uses ``gpt_worker.py``
+(persistent process); this entry point is for scripts and manual checks.
 """
 
 from __future__ import annotations
@@ -17,12 +19,17 @@ import soundfile as sf
 import torch
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import engine_paths
+
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", required=True)
+    parser.add_argument("--data-dir", default="")
     parser.add_argument("--text", required=True)
     parser.add_argument("--ref", required=True)
     parser.add_argument("--ref-text", required=True)
@@ -35,31 +42,50 @@ def main() -> int:
     args = parser.parse_args()
 
     engine = Path(args.engine).resolve()
+    data_dir = Path(args.data_dir).resolve() if args.data_dir else engine_paths.data_root()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    os.environ[engine_paths.DATA_ENV] = str(data_dir)
+    mount_report = engine_paths.ensure_mounts(engine)
+    engine = Path(mount_report.get("engine_root") or engine).resolve()
+
     out = Path(args.out).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     os.chdir(engine)
     sys.path.insert(0, str(engine))
     sys.path.insert(0, str(engine / "GPT_SoVITS"))
+    os.environ.setdefault(
+        "bert_path",
+        str(engine_paths.weights_root() / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large"),
+    )
 
     device = args.device
     if device == "cuda" and not torch.cuda.is_available():
         device = "cpu"
     is_half = device == "cuda"
 
-    base = yaml.safe_load((engine / "GPT_SoVITS" / "configs" / "tts_infer.yaml").read_text(encoding="utf-8"))
+    weights = engine_paths.weights_root()
+    base_path = engine / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
+    base: dict = {}
+    if base_path.is_file():
+        base = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
     custom = dict(base.get("custom") or {})
     custom.update(
         {
             "device": device,
             "is_half": is_half,
             "version": "v5turbo",
-            "t2s_weights_path": "GPT_SoVITS/pretrained_models/s1v3.ckpt",
-            "vits_weights_path": "GPT_SoVITS/pretrained_models/gsv-v5-pretrained/s2Gv5turbo.pth",
-            "cnhuhbert_base_path": "GPT_SoVITS/pretrained_models/chinese-hubert-base",
-            "bert_base_path": "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",
+            "t2s_weights_path": str(weights / "GPT_SoVITS" / "pretrained_models" / "s1v3.ckpt"),
+            "vits_weights_path": str(
+                weights / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"
+            ),
+            "cnhuhbert_base_path": str(weights / "GPT_SoVITS" / "pretrained_models" / "chinese-hubert-base"),
+            "bert_base_path": str(
+                weights / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large"
+            ),
         }
     )
-    config_path = out.with_suffix(".yaml")
+    config_path = data_dir / "config" / "tts_infer_voicesmith.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(yaml.safe_dump({"custom": custom}, allow_unicode=True), encoding="utf-8")
 
     from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config

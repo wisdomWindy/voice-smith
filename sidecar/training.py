@@ -22,12 +22,14 @@ import soundfile as sf
 import yaml
 
 import dataset as dataset_qc
+import engine_paths
 
 CREATE_NO_WINDOW = 0x0800_0000 if os.name == "nt" else 0
 CREATE_NEW_PROCESS_GROUP = 0x0000_0200 if os.name == "nt" else 0
 
 ROOT: Optional[Path] = None
 ENGINE: Optional[Path] = None
+_WEIGHTS: Optional[Path] = None
 _LOCK = threading.Lock()
 _CURRENT: dict[str, subprocess.Popen[str]] = {}
 _CANCEL: set[str] = set()
@@ -38,10 +40,18 @@ class TrainingCancelled(Exception):
 
 
 def configure(data_dir: Path, engine_root: Path) -> None:
-    global ROOT, ENGINE
+    global ROOT, ENGINE, _WEIGHTS
     ROOT = data_dir / "training"
-    ENGINE = engine_root
+    os.environ[engine_paths.DATA_ENV] = str(data_dir)
+    report = engine_paths.ensure_mounts(engine_root)
+    ENGINE = Path(report.get("engine_root") or engine_root)
+    _WEIGHTS = engine_paths.weights_root()
     ROOT.mkdir(parents=True, exist_ok=True)
+
+
+def _weights() -> Path:
+    assert _WEIGHTS is not None
+    return _WEIGHTS
 
 
 def request_cancel(job_id: str) -> None:
@@ -175,6 +185,10 @@ def _base_env() -> dict[str, str]:
     env["HF_ENDPOINT"] = env.get("HF_ENDPOINT", "https://hf-mirror.com")
     env["OMP_NUM_THREADS"] = "4"
     env["PATH"] = f"{ENGINE}{os.pathsep}{env.get('PATH', '')}"
+    env[engine_paths.ENGINE_ENV] = str(ENGINE)
+    env[engine_paths.ASSETS_ENV] = str(engine_paths.assets_root())
+    env[engine_paths.DATA_ENV] = str(ROOT.parent if ROOT is not None else engine_paths.data_root())
+    env["bert_path"] = str(_weights() / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large")
     return env
 
 
@@ -211,7 +225,7 @@ def _write_s1(exp_dir: Path, epochs: int, batch_size: int, num_workers: int = 1)
         "train_semantic_path": str(exp_dir / "6-name2semantic-0.tsv"),
         "train_phoneme_path": str(exp_dir / "2-name2text-0.txt"),
         "output_dir": str(exp_dir / "logs_s1"),
-        "pretrained_s1": str(ENGINE / "GPT_SoVITS" / "pretrained_models" / "s1v3.ckpt"),
+        "pretrained_s1": str(_weights() / "GPT_SoVITS" / "pretrained_models" / "s1v3.ckpt"),
     }
     path = exp_dir / "s1.yaml"
     path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
@@ -233,7 +247,9 @@ def _write_s2(exp_dir: Path, epochs: int, segment_size: int = 20480, num_workers
             "save_every_epoch": 1,
             "if_save_latest": 0,
             "if_save_every_weights": True,
-            "pretrained_s2G": str(ENGINE / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"),
+            "pretrained_s2G": str(
+                _weights() / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"
+            ),
             "pretrained_s2D": "",
         }
     )
@@ -256,6 +272,7 @@ def _newest(path: Path, pattern: str) -> Optional[Path]:
 
 def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., None]) -> None:
     assert ROOT is not None and ENGINE is not None
+    engine_paths.ensure_mounts(ENGINE)
     log_path = ROOT / "logs" / f"{job_id}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text("", encoding="utf-8")
@@ -294,18 +311,18 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
         }
 
         on_update(job_id, stage="text", progress=12, detail="文本与 BERT 特征")
-        env1 = {**env, **common, "bert_pretrained_dir": str(gpt / "pretrained_models" / "chinese-roberta-wwm-ext-large")}
+        env1 = {**env, **common, "bert_pretrained_dir": str(_weights() / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large")}
         _run(job_id, "1-get-text", _python_command(gpt / "prepare_datasets" / "1-get-text.py", ENGINE), ENGINE, env1, log_path)
         text_out = exp_dir / "2-name2text-0.txt"
         if not text_out.exists() or text_out.stat().st_size < 10:
             raise RuntimeError("1-get-text produced no usable text; see training log")
 
         on_update(job_id, stage="hubert", progress=28, detail="HuBERT 与 32k 音频")
-        env2 = {**env, **common, "cnhubert_base_dir": str(gpt / "pretrained_models" / "chinese-hubert-base")}
+        env2 = {**env, **common, "cnhubert_base_dir": str(_weights() / "GPT_SoVITS" / "pretrained_models" / "chinese-hubert-base")}
         _run(job_id, "2-get-hubert", _python_command(gpt / "prepare_datasets" / "2-get-hubert-wav32k.py", ENGINE), ENGINE, env2, log_path)
 
         on_update(job_id, stage="sv", progress=40, detail="说话人向量")
-        env_sv = {**env, **common, "sv_path": str(gpt / "pretrained_models" / "sv" / "pretrained_eres2netv2w24s4ep4.ckpt")}
+        env_sv = {**env, **common, "sv_path": str(_weights() / "GPT_SoVITS" / "pretrained_models" / "sv" / "pretrained_eres2netv2w24s4ep4.ckpt")}
         _run(job_id, "2-get-sv", _python_command(gpt / "prepare_datasets" / "2-get-sv.py", ENGINE), ENGINE, env_sv, log_path)
 
         on_update(job_id, stage="semantic", progress=50, detail="语义 token")
@@ -317,7 +334,9 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
         env3 = {
             **env,
             **common,
-            "pretrained_s2G": str(gpt / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"),
+            "pretrained_s2G": str(
+                _weights() / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"
+            ),
             "s2config_path": str(semantic_cfg_path),
         }
         _run(job_id, "3-get-semantic", _python_command(gpt / "prepare_datasets" / "3-get-semantic.py", ENGINE), ENGINE, env3, log_path)

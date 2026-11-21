@@ -40,6 +40,7 @@ import assets as asset_store
 import asset_install
 import asr as asr_engine
 import dataset as dataset_qc
+import engine_paths
 import slice as slice_engine
 import training as training_runner
 import uvr5 as uvr5_engine
@@ -366,7 +367,9 @@ def get_real_engine() -> RealEngine:
     global REAL_ENGINE
     with REAL_ENGINE_LOCK:
         if REAL_ENGINE is None:
-            REAL_ENGINE = RealEngine(asset_store.ENGINE_ROOT, DATA_DIR / "logs" / "engine.log")
+            REAL_ENGINE = RealEngine(
+                asset_store.ENGINE_ROOT, DATA_DIR / "logs" / "engine.log", DATA_DIR
+            )
         return REAL_ENGINE
 
 
@@ -604,6 +607,8 @@ def health() -> dict[str, Any]:
         "assets_ready": assets_ready,
         "python": sys.version.split()[0],
         "data_dir": str(DATA_DIR),
+        "engine_source": str(asset_store.ENGINE_ROOT),
+        "assets_root": str(asset_store.ASSETS_ROOT),
     }
 
 
@@ -702,21 +707,12 @@ def doctor() -> dict[str, Any]:
             "fix": "安装 NVIDIA 椹卞姩骞剁‘淇?nvidia-smi 可用",
         })
 
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        for candidate in (
-            asset_store.ENGINE_ROOT / "runtime" / "ffmpeg.exe",
-            asset_store.ENGINE_ROOT / "ffmpeg.exe",
-            asset_store.PROJECT_ROOT / "runtime" / "ffmpeg.exe",
-        ):
-            if candidate.exists():
-                ffmpeg = str(candidate)
-                break
+    ffmpeg = str(engine_paths.ffmpeg_path() or "")
     checks.append({
         "id": "ffmpeg", "name": "ffmpeg",
         "status": "pass" if ffmpeg else "fail",
-        "fix": "" if ffmpeg else "将 ffmpeg.exe/ffprobe.exe 放入应用目录或 PATH",
-        "fix": "" if ffmpeg else "灏?ffmpeg.exe/ffprobe.exe 鏀惧叆搴旂敤鐩綍鎴?PATH",
+        "detail": ffmpeg or "not found",
+        "fix": "" if ffmpeg else "将 ffmpeg.exe/ffprobe.exe 放入资产目录 assets/bin 或 PATH",
     })
 
     try:
@@ -1211,7 +1207,7 @@ def synthesis_export(job_id: str, format: str = Query(default="mp3", pattern="^(
         return FileResponse(wav, media_type="audio/wav", filename=f"{job_id}.wav")
     mp3 = wav.with_suffix(".mp3")
     if not mp3.exists():
-        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+        ffmpeg = str(engine_paths.ffmpeg_path() or "ffmpeg")
         try:
             subprocess.run(
                 [ffmpeg, "-y", "-i", str(wav), "-codec:a", "libmp3lame", "-q:a", "2", str(mp3)],
@@ -1297,13 +1293,21 @@ def main() -> None:
     DB_PATH = DATA_DIR / "voice_smith.db"
     OUTPUT_DIR = DATA_DIR / "outputs"
     MODEL_DIR = DATA_DIR / "models"
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    os.environ[engine_paths.DATA_ENV] = str(DATA_DIR)
+    mount_report = asset_store.refresh()
+    engine_root = asset_store.ENGINE_ROOT
     init_db()
-    training_runner.configure(DATA_DIR, asset_store.ENGINE_ROOT)
-    asr_engine.configure(DATA_DIR, asset_store.ENGINE_ROOT)
-    uvr5_engine.configure(DATA_DIR, asset_store.ENGINE_ROOT)
-    asset_install.configure(DATA_DIR, asset_store.ENGINE_ROOT)
+    training_runner.configure(DATA_DIR, engine_root)
+    asr_engine.configure(DATA_DIR, engine_root)
+    uvr5_engine.configure(DATA_DIR, engine_root)
+    asset_install.configure(DATA_DIR, engine_root)
 
-    print(f"VoiceSmith engine ready on http://127.0.0.1:{args.port} (mock)", flush=True)
+    print(f"VoiceSmith engine ready on http://127.0.0.1:{args.port}", flush=True)
+    print(f"engine source: {engine_root}", flush=True)
+    print(f"asset store:   {asset_store.ASSETS_ROOT}", flush=True)
+    if mount_report.get("error"):
+        print(f"asset mounts:  {mount_report['error']}", flush=True)
     import uvicorn
 
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")

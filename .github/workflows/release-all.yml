@@ -157,30 +157,17 @@ jobs:
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: gh release upload "v$VERSION" runtime-*.part* runtime-*-manifest.json --repo "${{ github.repository }}" --clobber
 
-  assets:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Pull fixed V5 engine manifest
-        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
-        run: |
-          gh release download v5-engine --repo "${{ github.repository }}" -p 'engine-v5-manifest.json' -D base
-          test -s base/engine-v5-manifest.json
-          for p in windows-x64 macos-intel macos-arm64; do
-            cp base/engine-v5-manifest.json "assets-$p-manifest.json"
-          done
-      - name: Upload manifests
-        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
-        run: |
-          gh release upload "v$VERSION" assets-windows-x64-manifest.json assets-macos-intel-manifest.json assets-macos-arm64-manifest.json --repo "${{ github.repository }}" --clobber
+  # Model/tool weights are NOT built here: they are large third-party payloads
+  # published by `release-packs.yml` (self-hosted runner with a weights tree) as
+  # assets-<platform>-manifest.json + parts. The installer itself ships the
+  # vendored engine source, so this workflow has no v5-engine dependency.
 
   finalize:
-    needs: [installers, runtime-windows, runtime-macos, assets]
+    needs: [installers, runtime-windows, runtime-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify assets and publish
+      - name: Verify installer and runtime artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -194,11 +181,11 @@ jobs:
             "deps-core-manifest.json" \
             "deps-torch-manifest.json" \
             "runtime-macos-intel-manifest.json" \
-            "runtime-macos-arm64-manifest.json" \
-            "assets-windows-x64-manifest.json" \
-            "assets-macos-intel-manifest.json" \
-            "assets-macos-arm64-manifest.json"; do
+            "runtime-macos-arm64-manifest.json"; do
             echo "$NAMES" | grep -qx "$name" || { echo "missing $name"; exit 1; }
           done
+          echo "$NAMES" | grep -q '^assets-.*-manifest.json$' \
+            && echo "weight assets manifest present" \
+            || echo "weight assets not published yet: run release-packs before announcing the release"
           gh release edit "v$VERSION" --repo "${{ github.repository }}" --draft=false --latest
 

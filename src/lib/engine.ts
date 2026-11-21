@@ -20,6 +20,8 @@ export type Health = {
   assets_ready: boolean
   python: string
   data_dir: string
+  engine_source?: string
+  assets_root?: string
 }
 
 export type AssetStatus = {
@@ -37,13 +39,26 @@ export type AssetStatus = {
   hash_ok?: boolean | null
 }
 
+export type AssetMount = {
+  path: string
+  target: string
+  source: string
+  status: string
+  error?: string
+}
+
 export type AssetReport = {
   engine_root: string
+  engine_source?: string
+  assets_root?: string
+  weights_root?: string
   model_root: string
   items: AssetStatus[]
   missing: string[]
   bad_hash?: string[]
   ready: boolean
+  mounts?: AssetMount[]
+  mount_error?: string
 }
 
 export type DoctorCheck = {
@@ -156,6 +171,8 @@ export type AssetPackStatus = {
   url: string
   expected_sha256: string
   installed: boolean
+  missing?: string[]
+  weights_root?: string
 }
 
 export type Job = {

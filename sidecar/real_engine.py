@@ -14,9 +14,10 @@ CREATE_NO_WINDOW = 0x0800_0000 if os.name == "nt" else 0
 
 
 class RealEngine:
-    def __init__(self, engine_root: Path, log_path: Path):
+    def __init__(self, engine_root: Path, log_path: Path, data_dir: Path | None = None):
         self.engine_root = engine_root
         self.log_path = log_path
+        self.data_dir = data_dir
         self.proc: Optional[subprocess.Popen[str]] = None
         self.log_file = None
         self.lock = threading.Lock()
@@ -24,14 +25,16 @@ class RealEngine:
     def _start(self) -> None:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_file = open(self.log_path, "a", encoding="utf-8")
+        data_args = ["--data-dir", str(self.data_dir)] if self.data_dir is not None else []
         if getattr(sys, "frozen", False):
-            command = [sys.executable, "--worker", "--engine", str(self.engine_root)]
+            command = [sys.executable, "--worker", "--engine", str(self.engine_root), *data_args]
         else:
             command = [
                 sys.executable,
                 str(Path(__file__).resolve().parent / "gpt_worker.py"),
                 "--engine",
                 str(self.engine_root),
+                *data_args,
             ]
         self.proc = subprocess.Popen(
             command,

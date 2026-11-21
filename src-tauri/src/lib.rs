@@ -152,6 +152,61 @@ fn python_exe_name() -> &'static str {
     }
 }
 
+/// The engine source is vendored with the app; weights live in `<data>/assets`.
+/// Resolution order mirrors `sidecar/engine_paths.py`.
+fn has_engine_source(path: &Path) -> bool {
+    path.join("GPT_SoVITS")
+        .join("TTS_infer_pack")
+        .join("TTS.py")
+        .is_file()
+}
+
+fn engine_source_candidates(
+    dev_root: &Path,
+    install_root: &Path,
+    resource_root: &Path,
+    data_dir: &Path,
+) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if cfg!(debug_assertions) {
+        candidates.push(dev_root.join("vendor").join("GPT-SoVITS"));
+    }
+    candidates.extend([
+        resource_root.join("upstream").join("GPT-SoVITS"),
+        resource_root.join("resources").join("upstream").join("GPT-SoVITS"),
+        install_root.join("resources").join("upstream").join("GPT-SoVITS"),
+        install_root.join("upstream").join("GPT-SoVITS"),
+        // legacy: one offline pack installed source + weights under <install>/engine
+        install_root.join("engine").join("GPT-SoVITS"),
+        data_dir.join("engine").join("GPT-SoVITS"),
+    ]);
+    candidates
+}
+
+fn resolve_engine_source(
+    dev_root: &Path,
+    install_root: &Path,
+    resource_root: &Path,
+    data_dir: &Path,
+) -> PathBuf {
+    if let Ok(explicit) = std::env::var("VOICE_SMITH_ENGINE") {
+        let trimmed = explicit.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    engine_source_candidates(dev_root, install_root, resource_root, data_dir)
+        .into_iter()
+        .find(|path| has_engine_source(path))
+        .unwrap_or_else(|| {
+            if cfg!(debug_assertions) {
+                dev_root.join("vendor").join("GPT-SoVITS")
+            } else {
+                install_root.join("engine").join("GPT-SoVITS")
+            }
+        })
+}
+
 fn log_tail(path: &Path, lines: usize) -> String {
     fs::read_to_string(path)
         .unwrap_or_default()
@@ -255,10 +310,18 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(log_err));
 
-    let engine_root = install_root().join("engine").join("GPT-SoVITS");
-    if std::env::var("VOICE_SMITH_ENGINE").is_err() {
-        command.env("VOICE_SMITH_ENGINE", engine_root);
+    // Engine source ships with the app (vendor/upstream); weights and tools are
+    // downloaded into <data>/assets. The sidecar mounts them into the engine tree.
+    let install_dir = install_root();
+    let engine_root = resolve_engine_source(&dev_root, &install_dir, &resource_root, &data_dir);
+    let assets_dir = data_dir.join("assets");
+    if std::env::var_os("VOICE_SMITH_ENGINE").is_none() {
+        command.env("VOICE_SMITH_ENGINE", &engine_root);
     }
+    if std::env::var_os("VOICE_SMITH_ASSETS_DIR").is_none() {
+        command.env("VOICE_SMITH_ASSETS_DIR", &assets_dir);
+    }
+    command.env("VOICE_SMITH_DATA_DIR", &data_dir);
 
     #[cfg(target_os = "windows")]
     command.creation_flags(CREATE_NO_WINDOW);
@@ -1193,6 +1256,69 @@ mod tests {
             assert!(contains_wheel(&runtime.join("deps").join(kind)));
         }
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    fn make_engine(root: &Path) {
+        let engine = root.join("GPT_SoVITS").join("TTS_infer_pack");
+        fs::create_dir_all(&engine).unwrap();
+        fs::write(engine.join("TTS.py"), b"# engine").unwrap();
+    }
+
+    #[test]
+    fn engine_source_prefers_vendored_checkout() {
+        let root = test_root("engine-vendor");
+        let dev = root.join("repo");
+        make_engine(&dev.join("vendor").join("GPT-SoVITS"));
+
+        let found = engine_source_candidates(
+            &dev,
+            &root.join("install"),
+            &root.join("resources"),
+            &root.join("data"),
+        )
+        .into_iter()
+        .find(|path| has_engine_source(path))
+        .expect("vendored engine missing");
+        assert_eq!(found, dev.join("vendor").join("GPT-SoVITS"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn engine_source_finds_bundled_upstream() {
+        let root = test_root("engine-upstream");
+        let install = root.join("install");
+        make_engine(&install.join("resources").join("upstream").join("GPT-SoVITS"));
+
+        let found = engine_source_candidates(
+            &root.join("repo"),
+            &install,
+            &install.join("resources"),
+            &root.join("data"),
+        )
+        .into_iter()
+        .find(|path| has_engine_source(path))
+        .expect("bundled engine missing");
+        assert!(found.ends_with("upstream/GPT-SoVITS") || found.ends_with("upstream\\GPT-SoVITS"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn engine_source_falls_back_to_legacy_engine_dir() {
+        let root = test_root("engine-legacy");
+        let install = root.join("install");
+        make_engine(&install.join("engine").join("GPT-SoVITS"));
+
+        let found = engine_source_candidates(
+            &root.join("repo"),
+            &install,
+            &install.join("resources"),
+            &root.join("data"),
+        )
+        .into_iter()
+        .find(|path| has_engine_source(path))
+        .expect("legacy engine missing");
+        assert_eq!(found, install.join("engine").join("GPT-SoVITS"));
         let _ = fs::remove_dir_all(root);
     }
 }

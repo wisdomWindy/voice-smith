@@ -6,10 +6,15 @@
 
 ## 1. 版本锁定
 
-- 引擎放在 `engine/GPT-SoVITS`（git submodule 或 vendor），**锁定 commit**。
+- 引擎源码 vendor 在 `vendor/GPT-SoVITS`（追踪进仓库，快照来源与排除项见
+  `vendor/GPT-SoVITS/VENDORED.md`，逐文件 sha256 见 `VENDOR_MANIFEST.json`）。
+- 安装包通过 `pnpm stage:engine` 把它复制到 `src-tauri/resources/upstream`，
+  运行时从 `resources/upstream/GPT-SoVITS` 解析；**不再依赖 `v5-engine` 单体 Release**。
 - 不在运行时 `git pull main`；升级必须走 ADR + 回归（音质、RTF、显存、模型兼容）。
-- 记录字段：`engine_commit`、`python_version`、`torch_version`、`cuda_version`、`model_version`。
-- 许可证：MIT；再分发保留 `LICENSE` 与版权声明。
+- 权重不随源码提交：全部放 `<data>/assets`（见第 4 节），由资产包或资产页导入。
+- 记录字段：`engine_snapshot`（`VENDOR_MANIFEST.json` 的 count/bytes）、`python_version`、
+  `torch_version`、`cuda_version`、`model_version`。
+- 许可证：MIT；再分发保留 `vendor/GPT-SoVITS/LICENSE` 与版权声明。
 
 ## 2. 环境矩阵
 
@@ -51,20 +56,29 @@
 
 ## 4. 资产清单
 
-| 资产 | 目标路径 | 来源 | 备注 |
+资产库根目录：`<data>/assets`（开发态 `<repo>/.data/assets`，安装后 `<install>/data/assets`；
+可由 `VOICE_SMITH_ASSETS_DIR` 覆盖）。下表的「资产库路径」都相对该根目录。
+
+| 资产 | 资产库路径 | 来源 | 备注 |
 |---|---|---|---|
-| GPT/SoVITS 底模 | `GPT_SoVITS/pretrained_models/` | HuggingFace `lj1995/GPT-SoVITS` | 按版本子目录放置 |
-| G2PWModel | `GPT_SoVITS/text/G2PWModel/` | HuggingFace `XXXXRT/GPT-SoVITS-Pretrained` / ModelScope | 中文 TTS 需要 |
-| UVR5 权重 | `tools/uvr5/uvr5_weights/` | HuggingFace `lj1995/VoiceConversionWebUI` | 人声分离 |
-| ASR 模型 | `tools/asr/models/` | FunASR/ModelScope、Faster-Whisper | 可选离线预置 |
-| ffmpeg | 仓库根目录 `ffmpeg.exe` / `ffprobe.exe` | 官方整合包 | 也可用系统 ffmpeg |
-| V2 底模 | `pretrained_models/gsv-v2final-pretrained/` | HuggingFace | V2 |
-| V3 底模 | `s1v3.ckpt`、`s2Gv3.pth`、BigVGAN 24k | HuggingFace | V3 |
-| V4 底模 | `gsv-v4-pretrained/s2Gv4.pth`、`vocoder.pth` | HuggingFace | V4 |
-| V2Pro 底模 | `v2Pro/s2Dv2Pro.pth`、`s2Gv2Pro.pth`、`s2Dv2ProPlus.pth`、`s2Gv2ProPlus.pth`、`sv/pretrained_eres2netv2w24s4ep4.ckpt` | HuggingFace | V2Pro |
-| V5 底模 | `gsv-v5-pretrained/` | HuggingFace | 以分支/commit 为准 |
+| GPT/SoVITS 底模 | `gpt-sovits/GPT_SoVITS/pretrained_models/` | HuggingFace `lj1995/GPT-SoVITS` | 按版本子目录放置 |
+| G2PWModel | `gpt-sovits/GPT_SoVITS/text/G2PWModel/` | HuggingFace `XXXXRT/GPT-SoVITS-Pretrained` / ModelScope | 中文 TTS 需要 |
+| 语种识别 | `gpt-sovits/GPT_SoVITS/pretrained_models/fast_langdetect/lid.176.bin` | fast_langdetect 缓存 | LangSegmenter 使用 |
+| UVR5 权重 | `gpt-sovits/tools/uvr5/uvr5_weights/` | HuggingFace `lj1995/VoiceConversionWebUI` | 人声分离 |
+| ASR 模型 | `gpt-sovits/tools/asr/models/` | FunASR/ModelScope | 可选离线预置 |
+| 超分 AP-BWE | `gpt-sovits/tools/AP_BWE_main/24kto48k/` | 官方整合包 | 可选 |
+| ffmpeg | `bin/ffmpeg.exe`、`bin/ffprobe.exe` | 官方整合包 | 也可用系统 ffmpeg |
+| V2 底模 | `gpt-sovits/GPT_SoVITS/pretrained_models/gsv-v2final-pretrained/` | HuggingFace | V2（不默认打包） |
+| V3 底模 | `s1v3.ckpt`、`s2Gv3.pth`、BigVGAN 24k | HuggingFace | V3（不默认打包） |
+| V4 底模 | `gpt-sovits/GPT_SoVITS/pretrained_models/gsv-v4-pretrained/` | HuggingFace | V4（不默认打包） |
+| V2Pro 底模 | `gpt-sovits/GPT_SoVITS/pretrained_models/v2Pro/`、`sv/` | HuggingFace | V2Pro（不默认打包） |
+| V5 底模 | `gpt-sovits/GPT_SoVITS/pretrained_models/gsv-v5-pretrained/` | HuggingFace | 默认打包 V5 Turbo |
+| 日语词典 | `vendor/GPT-SoVITS/GPT_SoVITS/text/ja_userdic/` | 上游源码内 | 属于源码快照，不是权重 |
 
 资产中心要求：sha256、大小、来源、版本、许可提示；支持下载、离线导入、损坏修复。
+安装后 `sidecar/engine_paths.py` 把上述目录以 junction/symlink 挂载到引擎树
+`GPT_SoVITS/pretrained_models`、`GPT_SoVITS/text/G2PWModel`、`tools/uvr5/uvr5_weights`、
+`tools/asr/models`、`tools/AP_BWE_main/24kto48k`、`runtime`，供上游相对路径查找。
 
 ## 5. 数据集格式
 
@@ -147,11 +161,19 @@ python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml
 
 ## 8. 打包注意
 
-- `api_v2.py` 使用 `tools.portable_runtime` 与 `FFMPEG_EXE`；打包时保留该运行时/路径逻辑。
-- PyInstaller 需要收集 GPT-SoVITS 的配置、文本前端、G2PW、BigVGAN、vocoder 等数据文件；用 `--collect-data`/hook。
+- 引擎源码随安装包（`pnpm stage:engine` → `src-tauri/resources/upstream`），权重下载到
+  `<data>/assets`；两者在运行时用 junction/symlink 合成，不要打成一个包。
+- 打包脚本 `scripts/stage-engine.mjs` 会拒绝超过 32MB 的文件、跳过 `pretrained_models/`、
+  `G2PWModel/`、`uvr5_weights/`、`asr/models/`、`24kto48k/`、`runtime/` 以及任何 junction，
+  保证安装包不含权重。
+- `api_v2.py` 使用 `tools.portable_runtime` 与 `FFMPEG_EXE`（`<engine>/runtime/ffmpeg.exe`）；
+  我们把 `data/assets/bin` 挂到 `<engine>/runtime`，因此无需改上游源码。
+- PyInstaller 需要收集 GPT-SoVITS 的配置、文本前端、G2PW、BigVGAN、vocoder 等数据文件；用
+  `--collect-data`/hook。`sidecar/voicesmith-engine.spec` 已声明 `engine_paths` 等 hiddenimports。
+- 生成配置写到 `<data>/config/tts_infer_voicesmith.yaml` 并使用绝对权重路径，禁止写引擎树。
 - 模型不内置；首次运行下载/离线导入。
 - `numpy<2.0`、`pydantic<=2.10.6` 等约束必须在 sidecar 环境中锁定，避免 Tauri/前端依赖污染。
-- 训练/推理脚本路径以锁定 commit 为准；升级时跑回归。
+- 训练/推理脚本路径以 vendored 快照为准；升级时跑回归（含 `scripts/engine_paths_selfcheck.py`）。
 
 ## 9. 已知约束
 
@@ -160,7 +182,10 @@ python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml
 3. **显存**：V2 系推理约 1.6–3.2GB；V3/V4/V5 更高；6GB 仅建议 V2/V2Pro 低配，12GB 起训练更稳。
 4. **依赖敏感**：`numpy<2.0`、`transformers<5`、`pydantic<=2.10.6`；升级需回归。
 5. **模型许可**：代码 MIT，权重/训练数据许可以资产页为准；不内置。
-6. **V5**：可能位于 `cuda_graph_accel_v5` 分支；以实际引入的 commit 为准。
+6. **V5**：以 `vendor/GPT-SoVITS` 快照为准（V5 Turbo 默认）；升级引擎需同时更新
+   `VENDOR_MANIFEST.json` 并跑回归。
+7. **路径契约**：上游存在若干「相对 cwd / 相对包目录」的权重路径；不要逐处改源码，
+   统一由 `sidecar/engine_paths.py` 挂载资产目录解决。
 
 ## 10. 参考
 

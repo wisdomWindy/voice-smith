@@ -1,7 +1,13 @@
 """Persistent GPT-SoVITS worker.
 
 Loads the TTS pipeline once, then serves JSON-line synthesis requests. The
-sidecar keeps one worker alive to avoid a 10–30 s model load per request.
+sidecar keeps one worker alive to avoid a 10-30 s model load per request.
+
+Engine source comes from ``vendor/GPT-SoVITS`` (or the bundled copy); weights
+come from ``<data>/assets`` and are mounted into the engine tree by
+``engine_paths.ensure_mounts``. The generated ``tts_infer`` config lives in the
+data directory and uses absolute weight paths, so nothing is written into the
+engine source tree.
 """
 
 from __future__ import annotations
@@ -19,11 +25,24 @@ import soundfile as sf
 import torch
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import engine_paths
+
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 
-def build_config(engine: Path) -> Path:
-    base = yaml.safe_load((engine / "GPT_SoVITS" / "configs" / "tts_infer.yaml").read_text(encoding="utf-8"))
+def _weights() -> Path:
+    return engine_paths.weights_root()
+
+
+def build_config(engine: Path, data_dir: Path) -> Path:
+    """Write a data-dir config with absolute asset paths; engine stays read-only."""
+    weights = _weights()
+    base_path = engine / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
+    base: dict = {}
+    if base_path.is_file():
+        base = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
     custom = dict(base.get("custom") or {})
     device = "cuda" if torch.cuda.is_available() else "cpu"
     custom.update(
@@ -31,14 +50,19 @@ def build_config(engine: Path) -> Path:
             "device": device,
             "is_half": device == "cuda",
             "version": "v5turbo",
-            "t2s_weights_path": "GPT_SoVITS/pretrained_models/s1v3.ckpt",
-            "vits_weights_path": "GPT_SoVITS/pretrained_models/gsv-v5-pretrained/s2Gv5turbo.pth",
-            "cnhuhbert_base_path": "GPT_SoVITS/pretrained_models/chinese-hubert-base",
-            "bert_base_path": "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",
+            "t2s_weights_path": str(weights / "GPT_SoVITS" / "pretrained_models" / "s1v3.ckpt"),
+            "vits_weights_path": str(
+                weights / "GPT_SoVITS" / "pretrained_models" / "gsv-v5-pretrained" / "s2Gv5turbo.pth"
+            ),
+            "cnhuhbert_base_path": str(weights / "GPT_SoVITS" / "pretrained_models" / "chinese-hubert-base"),
+            "bert_base_path": str(
+                weights / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large"
+            ),
         }
     )
-    config_path = engine / "tts_infer_voicesmith.yaml"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_dir = data_dir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_path = config_dir / "tts_infer_voicesmith.yaml"
     config_path.write_text(yaml.safe_dump({"custom": custom}, allow_unicode=True), encoding="utf-8")
     return config_path
 
@@ -52,25 +76,36 @@ def main() -> int:
         sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", required=True)
+    parser.add_argument("--data-dir", default="")
     args = parser.parse_args()
     engine = Path(args.engine).resolve()
+    data_dir = Path(args.data_dir).resolve() if args.data_dir else engine_paths.data_root()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    os.environ[engine_paths.DATA_ENV] = str(data_dir)
+    mount_report = engine_paths.ensure_mounts(engine)
+    if mount_report.get("error"):
+        print(json.dumps({"event": "warning", "mounts": mount_report}), file=sys.stderr, flush=True)
+    engine = Path(mount_report.get("engine_root") or engine).resolve()
     os.chdir(engine)
     os.environ["PATH"] = f"{engine}{os.pathsep}{os.environ.get('PATH', '')}"
     sys.path.insert(0, str(engine))
     sys.path.insert(0, str(engine / "GPT_SoVITS"))
+    # chinese2.py reads `bert_path` for its G2PW model_source fallback.
+    os.environ.setdefault("bert_path", str(_weights() / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large"))
 
-    config_path = build_config(engine)
+    config_path = build_config(engine, data_dir)
     with contextlib.redirect_stdout(sys.stderr):
         from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
 
         tts = TTS(TTS_Config(str(config_path)))
 
-    base_s1 = str((engine / tts.configs.t2s_weights_path).resolve())
-    base_s2 = str((engine / tts.configs.vits_weights_path).resolve())
+    base_s1 = str(Path(tts.configs.t2s_weights_path).resolve())
+    base_s2 = str(Path(tts.configs.vits_weights_path).resolve())
     current_s1 = base_s1
     current_s2 = base_s2
 
-    print(json.dumps({"event": "ready", "device": str(tts.configs.device), "version": str(tts.configs.version)}), flush=True)
+    print(json.dumps({"event": "ready", "device": str(tts.configs.device), "version": str(tts.configs.version),
+                      "engine": str(engine), "weights": str(_weights())}), flush=True)
 
     for line in sys.stdin:
         line = line.strip()

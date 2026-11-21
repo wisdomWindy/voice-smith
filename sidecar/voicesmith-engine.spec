@@ -32,6 +32,7 @@ for package in ("budoux", "jieba", "jieba_fast", "pyopenjtalk", "ToJyutping", "g
 
 hiddenimports = [
     "assets",
+    "engine_paths",
     "gpt_worker",
     "real_engine",
     "training",

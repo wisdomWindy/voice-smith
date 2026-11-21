@@ -10,7 +10,7 @@ GPT-SoVITS 在本地跑推理与训练，零服务器成本，默认零遥测。
 - **M2 完成**：V5 Turbo 真实推理（48k）；持久化 worker 冷启动约 20s、热任务复用；UI 任务成功并可下载 WAV。
 - **M3 完成**：数据集 `.list` → QC → BERT/HuBERT/SV/语义 → S1/S2 训练 → 自动发布微调音色 → 真实合成；S1 225 步、S2 192 步已验证，S1 断点恢复已修复。
 - **模型资产**：7 个关键权重带 sha256；校验页可显示 `hash` 失败，导入后自动复核。
-- **离线资产包 + 运行时**：主安装器 **3.5MB**；首启先下载 `runtime-bundle.json` 与 base/core/torch 三个运行时组件（嵌入式 Python + wheel），`pip` 离线安装后启动 sidecar；再下载 `VoiceSmith-Offline-Assets.7z`（3.02GiB），全程 sha256 校验、7zr 解压。
+- **离线资产包 + 运行时**：主安装器自带 **GPT-SoVITS 引擎源码**（`vendor/GPT-SoVITS`，约 49MB）；首启先下载 `runtime-bundle.json` 与 base/core/torch 三个运行时组件（嵌入式 Python + wheel），`pip` 离线安装后启动 sidecar；再下载 `VoiceSmith-Offline-Assets.7z`（权重/工具，约 5.5GB），全程 sha256 校验、7zr 解压到 `<data>/assets`。不再依赖 `v5-engine` 单体发布包。
 - **合规与支持**：首启使用规约；设置页导出诊断包（版本/doctor/日志，不含音频/模型）。
 - **ASR**：faster-whisper small 本地转写，支持文件夹批量生成训练 `.list`。
 - **长音频切片**：5–15s、48k 单声道；3 分钟测试音频生成 18 段。
@@ -27,8 +27,22 @@ Tauri 2 (Rust) ── WebView2 ── Vue 3 + TS + Vite
       │ spawn/supervise               │
 Python sidecar (FastAPI, 127.0.0.1:random, token)
       │
-GPT-SoVITS（engine/GPT-SoVITS） + SQLite + 本地文件
+GPT-SoVITS 引擎源码（vendor/GPT-SoVITS） + 权重（<data>/assets） + SQLite + 本地文件
 ```
+
+## 引擎与资产分层
+
+| 层 | 位置 | 来源 |
+| --- | --- | --- |
+| 引擎源码 | `vendor/GPT-SoVITS`（开发）→ `resources/upstream/GPT-SoVITS`（安装后） | 随仓库/安装包，`git` 锁定 |
+| 权重与工具 | `<data>/assets/gpt-sovits/...`、`<data>/assets/bin/` | 离线资产包下载或资产页导入 |
+| Python 运行时 | `<install>/runtime`、`runtime/deps/{core,torch}` | 运行时 bundle 下载 |
+
+sidecar 启动时把 `<data>/assets` 里的权重目录以 junction/symlink 挂载进引擎树
+（`sidecar/engine_paths.py`），因此上游相对路径（`GPT_SoVITS/pretrained_models`、
+`GPT_SoVITS/text/G2PWModel`、`tools/uvr5/uvr5_weights`、`runtime/ffmpeg.exe`）
+照常工作，而仓库里永远没有权重字节。引擎树只读时（例如 macOS .app），会复制一份
+源码到 `<data>/engine/GPT-SoVITS-src` 后再挂载。
 
 ## 环境
 
@@ -48,30 +62,42 @@ pnpm install
 uv venv --python 3.11 sidecar\.venv
 uv pip install --python sidecar\.venv\Scripts\python.exe -r sidecar\requirements.txt
 
-# 引擎代码（锁 commit；模型不放仓库）
-git clone --depth 1 https://github.com/RVC-Boss/GPT-SoVITS.git engine\GPT-SoVITS
+# 引擎源码已 vendor 在仓库内（vendor/GPT-SoVITS，锁定快照；不要另建 engine/）
+pnpm check:engine
 
 # 引擎 Python 依赖（torch 按显卡 CUDA 版本单独安装）
 uv pip install --python sidecar\.venv\Scripts\python.exe -r sidecar\engine-requirements.txt
 ```
+
+模型权重不放仓库：开发态可直接把权重导入 `<repo>/.data/assets/gpt-sovits/`，
+或设置 `VOICE_SMITH_ASSETS_DIR` 指向一个带权重的目录树；首次启动时 sidecar 会把
+它们挂载进 `vendor/GPT-SoVITS`。
 
 PyTorch 需按显卡选择：RTX 50 系用 CUDA 12.8 wheel（`torch 2.7.x+cu128`）。
 `uv pip install --python sidecar\.venv\Scripts\python.exe --find-links https://mirrors.aliyun.com/pytorch-wheels/cu128/ torch==2.7.1 torchaudio==2.7.1`
 
 ## 模型资产
 
-放在引擎目录（应用会自动扫描，也可在「模型资产」页离线导入）：
+权重 / 工具放在数据目录的资产库（应用自动扫描，也可在「模型资产」页离线导入）：
 
 ```text
-engine/GPT-SoVITS/GPT_SoVITS/pretrained_models/
-  chinese-roberta-wwm-ext-large/
-  chinese-hubert-base/
-  s1v3.ckpt
-  gsv-v5-pretrained/s2Gv5turbo.pth
-  gsv-v5-pretrained/vocoder.pth
-  sv/pretrained_eres2netv2w24s4ep4.ckpt
-engine/GPT-SoVITS/GPT_SoVITS/text/G2PWModel/
+<data>/assets/                        开发态默认 .data/assets
+  gpt-sovits/GPT_SoVITS/pretrained_models/
+    chinese-roberta-wwm-ext-large/
+    chinese-hubert-base/
+    s1v3.ckpt
+    gsv-v5-pretrained/s2Gv5turbo.pth
+    gsv-v5-pretrained/vocoder.pth
+    sv/pretrained_eres2netv2w24s4ep4.ckpt
+    fast_langdetect/lid.176.bin
+  gpt-sovits/GPT_SoVITS/text/G2PWModel/
+  gpt-sovits/tools/uvr5/uvr5_weights/
+  gpt-sovits/tools/asr/models/
+  bin/ffmpeg.exe, ffprobe.exe
 ```
+
+`VOICE_SMITH_ENGINE` / `VOICE_SMITH_ASSETS_DIR` / `VOICE_SMITH_DATA_DIR` 可覆盖
+三层路径（排障用）；正常情况下由 Rust 壳在启动 sidecar 时注入。
 
 V5 Turbo（48k，4 步）默认；V5 Dev 作为质量档；不再支持 V4/V3/V2。
 
@@ -109,7 +135,8 @@ pnpm build
 # 1) 冻结 sidecar（仅 macOS 旧路径；约 5.3GB，输出到 C 盘）
 scripts\build-engine.ps1
 
-# 2) 薄安装器（不含运行时）
+# 2) 薄安装器：staged 引擎源码 + UI + 7zr（不含运行时与权重）
+pnpm stage:engine
 pnpm tauri build --no-bundle
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" scripts\voicesmith.iss
 
@@ -118,8 +145,8 @@ scripts\build-runtime-base.ps1
 scripts\build-deps-pack.ps1 -Kind core  -WheelsDir .cache\wheels-core
 scripts\build-deps-pack.ps1 -Kind torch -WheelsDir .cache\wheels-torch
 
-# 4) 离线资产包（约 3.02GiB）
-scripts\build-assets-pack.ps1
+# 4) 权重资产包（只打权重/工具；需要一份带权重的 GPT-SoVITS 目录）
+scripts\build-assets-pack.ps1 -WeightsRoot D:\program\GPT-SoVITS-v5
 
 # 5) 分卷 + runtime-bundle.json
 scripts\split-release-assets.ps1 -Version 0.1.0
@@ -130,23 +157,25 @@ scripts\publish-release.ps1 -Version 0.1.0
 
 产物：
 
-- `dist-assets/VoiceSmith-0.1.0-Setup.exe`（约 3.5MB）
+- `dist-assets/VoiceSmith-0.1.0-Setup.exe`（约 55MB，含引擎源码）
 - `dist-assets/VoiceSmith-Runtime-base.7z`（约 10MB）
 - `dist-assets/VoiceSmith-Deps-core.7z`（约 104MB）
 - `dist-assets/VoiceSmith-Deps-torch.7z`（约 3.05GiB）
 - `dist-assets/runtime-bundle.json` + 三个组件 manifest/分卷
-- `dist-assets/VoiceSmith-Offline-Assets.7z`（约 3.02GiB）
+- `dist-assets/VoiceSmith-Offline-Assets.7z`（约 5.5GB，仅权重/工具）
 
 首次启动：下载运行时 bundle（base → core → torch）→ `bootstrap.py` 安装 wheel →
-启动 sidecar → 安装离线资产 → 自动重启 sidecar。
+启动 sidecar → 安装权重资产包（解压到 `<data>/assets` 并挂载）→ 自动重启 sidecar。
 
 ## 目录
 
 ```text
 src/                     Vue 3 前端
-src-tauri/               Tauri 2 Rust 壳
-sidecar/                 Python FastAPI sidecar
-engine/GPT-SoVITS/       引擎（不提交权重）
+src-tauri/               Tauri 2 Rust 壳（resources/upstream 由 pnpm stage:engine 生成）
+sidecar/                 Python FastAPI sidecar（engine_paths.py 定义路径契约）
+vendor/GPT-SoVITS/       引擎源码（只读；权重不提交）
+<data>/assets/           权重/工具资产库（开发态 .data/assets，不入库）
+scripts/                 构建、打包、分卷、路径自检
 docs/GPT-SoVITS-integration.md
 docs/requests/...        需求/spec/plan/工件
 PRD.md                   PRD v3.0

@@ -1,29 +1,39 @@
-"""Local ASR using the GPT-SoVITS V5 FunASR pipeline."""
+"""Local ASR using the GPT-SoVITS V5 FunASR pipeline.
+
+The FunASR models are assets (``<data>/assets/gpt-sovits/tools/asr/models``),
+never part of the vendored engine source.
+"""
 
 from __future__ import annotations
 
+import os
 import threading
 from pathlib import Path
 from typing import Any
 
 import soundfile as sf
 
+import engine_paths
+
 _MODEL = None
 _LOCK = threading.Lock()
 _MODEL_ROOT: Path | None = None
 _ENGINE: Path | None = None
+_WEIGHTS: Path | None = None
 
 
 def configure(data_dir: Path, engine_root: Path | None = None) -> None:
-    global _MODEL_ROOT, _ENGINE
+    global _MODEL_ROOT, _ENGINE, _WEIGHTS
+    os.environ[engine_paths.DATA_ENV] = str(data_dir)
+    _ENGINE = engine_root or engine_paths.engine_root()
+    engine_paths.ensure_mounts(_ENGINE)
+    _WEIGHTS = engine_paths.weights_root()
     _MODEL_ROOT = data_dir / "models" / "funasr"
     _MODEL_ROOT.mkdir(parents=True, exist_ok=True)
-    _ENGINE = engine_root
 
 
 def _models() -> tuple[Path, Path, Path]:
-    assert _ENGINE is not None
-    root = _ENGINE / "tools" / "asr" / "models"
+    root = (_WEIGHTS or engine_paths.weights_root()) / "tools" / "asr" / "models"
     asr = root / "speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
     vad = root / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
     punc = root / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch"

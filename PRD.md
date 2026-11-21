@@ -577,7 +577,7 @@ SQLite + 本地文件（模型/音频/日志）
 
 ### 12.6 GPT-SoVITS 集成契约
 
-- **引擎固定**：`engine/GPT-SoVITS`（git submodule 或 vendor），锁定 commit；升级走 ADR，不在运行时拉 `main`。
+- **引擎固定**：源码 vendor 在 `vendor/GPT-SoVITS`，锁定快照（`VENDOR_MANIFEST.json`）；权重放 `<data>/assets`，运行时挂载；升级走 ADR，不在运行时拉 `main`。
 - **环境**：Python 3.10–3.12；PyTorch 2.5.1–2.8；CUDA 12.4/12.8；`numpy<2.0`、`pydantic<=2.10.6`、`transformers<5` 等按 `requirements.txt` 锁定。
 - **资产路径**：
   - `GPT_SoVITS/pretrained_models/`（V2/V2Pro/V3/V4/V5 底模）

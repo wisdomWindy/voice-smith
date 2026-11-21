@@ -1,4 +1,8 @@
-"""UVR5 vocal/instrumental separation using the engine's HP2 model."""
+"""UVR5 vocal/instrumental separation using the engine's HP2 model.
+
+The UVR5 weights are assets (``<data>/assets/gpt-sovits/tools/uvr5/uvr5_weights``);
+the separation code stays in the vendored engine source.
+"""
 
 from __future__ import annotations
 
@@ -9,23 +13,29 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import engine_paths
+
 _ROOT: Path | None = None
 _ENGINE: Path | None = None
+_WEIGHTS: Path | None = None
 _MODEL = None
 _LOCK = threading.Lock()
 
 
 def configure(data_dir: Path, engine_root: Path) -> None:
-    global _ROOT, _ENGINE
+    global _ROOT, _ENGINE, _WEIGHTS
+    os.environ[engine_paths.DATA_ENV] = str(data_dir)
     _ROOT = data_dir / "uvr5"
     _ROOT.mkdir(parents=True, exist_ok=True)
-    _ENGINE = engine_root
+    report = engine_paths.ensure_mounts(engine_root)
+    _ENGINE = Path(report.get("engine_root") or engine_root)
+    _WEIGHTS = engine_paths.weights_root()
 
 
 def _load():
     global _MODEL
     assert _ENGINE is not None
-    model_path = _ENGINE / "tools" / "uvr5" / "uvr5_weights" / "HP2_all_vocals.pth"
+    model_path = (_WEIGHTS or engine_paths.weights_root()) / "tools" / "uvr5" / "uvr5_weights" / "HP2_all_vocals.pth"
     if not model_path.exists():
         raise FileNotFoundError(f"UVR5 model not found: {model_path}")
     if _MODEL is None:
