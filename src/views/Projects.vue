@@ -14,16 +14,14 @@ const busy = ref(false)
 
 async function createProject() {
   if (!isTauri()) {
-    error.value = '仅桌面端支持选择项目文件夹'
+    error.value = '仅桌面端支持创建项目'
     return
   }
   busy.value = true
   error.value = ''
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    const path = await invoke<string | null>('pick_project_folder')
-    if (!path) return
-    await invoke('create_project_structure', { path })
+    const path = await invoke<string>('create_project')
     addProject(path)
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
@@ -51,9 +49,10 @@ function remove(id: string, name: string) {
         <div>
           <h2>项目</h2>
           <p class="muted small">每个项目使用一个独立文件夹保存数据集、训练和推理产物。</p>
+          <p class="muted small">项目固定创建在安装目录的 <code>projects</code> 文件夹中，不能更改位置。</p>
         </div>
         <button class="button primary" :disabled="busy" @click="createProject">
-          {{ busy ? '选择文件夹…' : '创建项目' }}
+          {{ busy ? '创建中…' : '创建项目' }}
         </button>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
@@ -80,6 +79,6 @@ function remove(id: string, name: string) {
         </div>
       </div>
     </div>
-    <p v-if="!projects.length" class="muted small">还没有项目，点击右上角「创建项目」选择文件夹。</p>
+    <p v-if="!projects.length" class="muted small">还没有项目，点击右上角「创建项目」。</p>
   </section>
 </template>
