@@ -1,0 +1,24 @@
+{
+  "voices": [
+    {
+      "id": "builtin_female",
+      "name": "内置女声 · 清晰",
+      "file": "female_aishell3.wav",
+      "ref_text": "北京万科总经理刘肖的观点极具代表性",
+      "prompt_lang": "zh",
+      "text_lang": "zh",
+      "source": "AISHELL-3 SSB00050005",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin_male",
+      "name": "内置男声 · 沉稳",
+      "file": "male_aishell3.wav",
+      "ref_text": "店面一层突出展示了李宁专业品类的运动科技产品",
+      "prompt_lang": "zh",
+      "text_lang": "zh",
+      "source": "AISHELL-3 SSB13650001",
+      "license": "Apache-2.0"
+    }
+  ]
+}

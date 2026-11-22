@@ -89,6 +89,17 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+def builtin_voices_dir() -> Optional[Path]:
+    candidates = [Path(__file__).resolve().parent / "builtin_voices"]
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        candidates.append(Path(bundle) / "builtin_voices")
+    for candidate in candidates:
+        if (candidate / "manifest.json").is_file():
+            return candidate
+    return None
+
+
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -200,6 +211,42 @@ def init_db() -> None:
                 ),
             )
             conn.execute("UPDATE voices SET model_version='v5turbo' WHERE id='demo_hui'")
+        builtin = builtin_voices_dir()
+        if builtin:
+            manifest = json.loads((builtin / "manifest.json").read_text(encoding="utf-8"))
+            for item in manifest.get("voices", []):
+                source = builtin / str(item["file"])
+                if not source.is_file():
+                    continue
+                ref_dir = DATA_DIR / "voices" / str(item["id"])
+                ref_dir.mkdir(parents=True, exist_ok=True)
+                ref_file = ref_dir / "ref.wav"
+                shutil.copy2(source, ref_file)
+                conn.execute(
+                    """
+                    INSERT INTO voices(
+                      id,name,type,status,created_at,ref_audio_path,ref_text,prompt_lang,text_lang,model_version,engine
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET
+                      name=excluded.name,
+                      ref_audio_path=excluded.ref_audio_path,
+                      ref_text=excluded.ref_text,
+                      status='ready'
+                    """,
+                    (
+                        str(item["id"]),
+                        str(item["name"]),
+                        "quick",
+                        "ready",
+                        now_iso(),
+                        str(ref_file),
+                        str(item["ref_text"]),
+                        str(item.get("prompt_lang") or "zh"),
+                        str(item.get("text_lang") or "zh"),
+                        "v5turbo",
+                        "gpt-sovits",
+                    ),
+                )
         conn.commit()
 
 

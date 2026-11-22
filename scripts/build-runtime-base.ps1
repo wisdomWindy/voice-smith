@@ -52,6 +52,7 @@ if ($LASTEXITCODE -ne 0) { throw "pip is not usable in the staged runtime" }
 Copy-Item "$PSScriptRoot\..\sidecar\*.py" $sidecar -Force
 Copy-Item "$PSScriptRoot\..\sidecar\*.txt" $sidecar -Force -ErrorAction SilentlyContinue
 Copy-Item "$PSScriptRoot\..\sidecar\7zr.exe" $sidecar -Force
+Copy-Item "$PSScriptRoot\..\sidecar\builtin_voices" $sidecar -Recurse -Force
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutFile) | Out-Null
 & $SevenZip a -t7z -mx=3 $OutFile (Join-Path $stage '*') | Out-Null

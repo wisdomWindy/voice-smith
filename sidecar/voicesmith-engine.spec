@@ -129,7 +129,7 @@ a = Analysis(
     ["entry.py"],
     pathex=["."],
     binaries=[],
-    datas=metadata_datas,
+    datas=metadata_datas + [("builtin_voices", "builtin_voices")],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
