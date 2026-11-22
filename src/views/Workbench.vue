@@ -237,9 +237,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2>文本</h2>
-            <p class="muted small">
-              {{ engine.health?.mock ? 'M0 使用 mock 音频验证链路；M2 接入 GPT-SoVITS。' : '已接入 GPT-SoVITS；首次加载模型较慢，请稍候。' }}
-            </p>
           </div>
           <span class="tag">{{ mode === 'single' ? `${charCount} 字 · 约 ${estimate} 秒` : `${batchLines.length} 条` }}</span>
         </div>
@@ -357,20 +354,9 @@ onBeforeUnmount(() => {
         <h2>本机引擎</h2>
         <div class="kv">
           <span>状态</span><strong>{{ engine.status }}</strong>
-          <span>模式</span><strong>{{ engine.health?.engine ?? 'mock' }}</strong>
           <span>Python</span><strong>{{ engine.health?.python ?? '—' }}</strong>
           <span>数据目录</span><strong class="ellipsis">{{ engine.health?.data_dir ?? '—' }}</strong>
         </div>
-        <div class="divider" />
-        <p class="muted small">
-          <template v-if="engine.health?.mock">
-            当前为 M0 骨架：本地 FastAPI sidecar + SQLite + mock 合成。下一步接入
-            <code>GPT_SoVITS.TTS_infer_pack.TTS</code> 与真实权重。
-          </template>
-          <template v-else>
-            已检测到 GPT-SoVITS 权重与 PyTorch；正式合成会走真实引擎，首次加载较慢。
-          </template>
-        </p>
         <button class="button ghost" @click="engine.restart()" :disabled="engine.status === 'starting'">
           重启引擎
         </button>
