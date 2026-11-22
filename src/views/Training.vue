@@ -7,8 +7,6 @@ import { selectedProject } from '../lib/projects'
 
 const engine = useEngineStore()
 const items = ref<Training[]>([])
-const activeId = ref('')
-const log = ref('')
 const error = ref('')
 const starting = ref(false)
 const selectedDatasetId = ref('')
@@ -22,16 +20,13 @@ let timer: number | undefined
 
 const readyDatasets = computed(() => datasets.value.filter((item) => item.projectId === selectedProject.value?.id && item.status === 'preprocessed' && item.listPath))
 const selectedDataset = computed(() => readyDatasets.value.find((item) => item.id === selectedDatasetId.value))
-const active = computed(() => items.value.find((item) => item.id === activeId.value) || items.value[0])
-const busy = computed(() => active.value && ['queued', 'running', 'cancelling'].includes(active.value.status))
 const canStart = computed(() => Boolean(selectedDataset.value && !starting.value && !busy.value))
+const busy = computed(() => items.value.some((item) => ['queued', 'running', 'cancelling'].includes(item.status)))
 
 async function load() {
   if (!engine.client) return
   try {
     items.value = await engine.client.trainings()
-    if (!activeId.value && items.value.length) activeId.value = items.value[0].id
-    if (active.value) log.value = await engine.client.trainingLog(active.value.id)
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   }
@@ -42,7 +37,7 @@ async function start() {
   starting.value = true
   error.value = ''
   try {
-    const job = await engine.client.createTraining({
+    await engine.client.createTraining({
       dataset_list: selectedDataset.value.listPath,
       exp_name: expName.value.trim() || 'my_voice',
       s1_epochs: s1Epochs.value,
@@ -51,7 +46,6 @@ async function start() {
       num_workers: dataWorkers.value,
       force: force.value,
     })
-    activeId.value = job.id
     await load()
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
@@ -61,14 +55,10 @@ async function start() {
 }
 
 async function cancel() {
-  if (!engine.client || !active.value) return
-  await engine.client.cancelTraining(active.value.id)
+  const active = items.value.find((item) => ['queued', 'running', 'cancelling'].includes(item.status))
+  if (!engine.client || !active) return
+  await engine.client.cancelTraining(active.id)
   await load()
-}
-
-function pick(item: Training) {
-  activeId.value = item.id
-  void load()
 }
 
 watch(
@@ -127,19 +117,5 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="card" style="margin-top:16px">
-      <div class="card-head"><h2>训练历史</h2></div>
-      <table class="table">
-        <thead><tr><th>实验</th><th>状态</th><th>阶段</th><th>进度</th><th>创建</th></tr></thead>
-        <tbody>
-          <tr v-for="item in items" :key="item.id" @click="pick(item)">
-            <td>{{ item.exp_name }}</td><td>{{ item.status }}</td><td>{{ item.stage }}</td>
-            <td>{{ Math.round((item.progress || 0) * 100) }}%</td><td>{{ item.created_at }}</td>
-          </tr>
-          <tr v-if="!items.length"><td colspan="5" class="muted">还没有训练任务。</td></tr>
-        </tbody>
-      </table>
-      <pre v-if="log" class="log">{{ log }}</pre>
-    </div>
   </section>
 </template>
