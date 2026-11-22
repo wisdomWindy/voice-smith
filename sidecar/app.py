@@ -1313,6 +1313,23 @@ def jobs(limit: int = Query(default=50, ge=1, le=200)) -> dict[str, Any]:
     return {"items": list_jobs(limit)}
 
 
+@app.delete("/api/v1/jobs/{job_id}", dependencies=[Depends(require_token)])
+def job_delete(job_id: str) -> dict[str, Any]:
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
+    audio_path = job.get("audio_path")
+    if audio_path:
+        target = Path(audio_path).resolve()
+        root = OUTPUT_DIR.resolve()
+        if target == root or root in target.parents:
+            target.unlink(missing_ok=True)
+    with LOCK, closing(connect()) as conn:
+        conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        conn.commit()
+    return {"ok": True, "job_id": job_id}
+
+
 @app.get("/api/v1/events")
 async def events(
     job_id: str,

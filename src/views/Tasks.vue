@@ -51,11 +51,14 @@ async function openFolder(item: Job) {
 }
 
 async function deleteAudio(item: Job) {
-  if (!item.audio_path || !isTauri()) return
-  if (!window.confirm('删除这条推理音频？')) return
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('delete_output', { path: item.audio_path })
+  if (!engine.client) return
+  if (!window.confirm('删除这条推理记录和对应音频？')) return
+  await engine.client.deleteJob(item.id)
   await load()
+}
+
+function percent(value: number | undefined): number {
+  return Math.max(0, Math.min(100, Math.round(value || 0)))
 }
 
 function isActive(status: string) {
@@ -97,7 +100,7 @@ onUnmounted(() => {
         <tbody>
           <tr v-for="item in trainings" :key="item.id">
             <td>{{ item.exp_name }}</td><td>{{ item.status }}</td><td>{{ item.stage }}</td>
-            <td>{{ Math.round((item.progress || 0) * 100) }}%</td>
+            <td>{{ percent(item.progress) }}%</td>
             <td class="row gap">
               <button v-if="isActive(item.status)" class="button ghost small" @click="cancelTraining(item)">取消</button>
               <button v-if="['failed', 'cancelled'].includes(item.status)" class="button ghost small" @click="retryTraining(item)">重试</button>
@@ -116,7 +119,7 @@ onUnmounted(() => {
           <tr v-for="item in jobs" :key="item.id">
             <td class="ellipsis">{{ item.text }}</td>
             <td>{{ item.status }}</td>
-            <td>{{ Math.round((item.progress || 0) * 100) }}%</td>
+            <td>{{ percent(item.progress) }}%</td>
             <td class="row gap">
               <button v-if="isActive(item.status)" class="button ghost small" @click="cancelJob(item)">取消</button>
               <button v-if="['failed', 'cancelled'].includes(item.status)" class="button ghost small" @click="retryJob(item)">重试</button>

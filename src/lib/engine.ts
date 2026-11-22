@@ -496,6 +496,10 @@ export class EngineClient {
     return data.items
   }
 
+  async deleteJob(jobId: string): Promise<void> {
+    await this.request(`/api/v1/jobs/${jobId}`, { method: 'DELETE' })
+  }
+
   async waitUntilReady(timeoutMs = 15000): Promise<Health> {
     const started = Date.now()
     let lastError: unknown = null
