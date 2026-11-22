@@ -1078,22 +1078,33 @@ fn delete_output(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn create_project() -> Result<String, String> {
+fn create_project(name: Option<String>) -> Result<String, String> {
     let root = install_root().join("projects");
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
-    let mut index = 1usize;
-    loop {
-        let name = format!("项目 {index}");
-        let path = root.join(&name);
-        if path.exists() {
-            index += 1;
+    let raw = name.unwrap_or_default();
+    let mut clean = String::new();
+    for ch in raw.trim().trim_matches('.').chars() {
+        if ch.is_control() || r#"<>:"/\|?*"#.contains(ch) {
             continue;
         }
-        for child in ["datasets", "training", "outputs", "logs"] {
-            fs::create_dir_all(path.join(child)).map_err(|e| e.to_string())?;
-        }
-        return Ok(path.to_string_lossy().to_string());
+        clean.push(ch);
     }
+    let clean = clean.trim();
+    if clean.is_empty() {
+        return Err("项目名称不能为空".into());
+    }
+    let clean: String = clean.chars().take(60).collect();
+    if clean.is_empty() {
+        return Err("项目名称不能为空".into());
+    }
+    let path = root.join(&clean);
+    if path.exists() {
+        return Err("项目名称已存在".into());
+    }
+    for child in ["datasets", "training", "outputs", "logs"] {
+        fs::create_dir_all(path.join(child)).map_err(|e| e.to_string())?;
+    }
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]

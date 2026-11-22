@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import ProjectCreateDialog from '../components/ProjectCreateDialog.vue'
 import { isTauri } from '../lib/engine'
 import {
   addProject,
@@ -12,30 +13,50 @@ import {
 
 const error = ref('')
 const busy = ref(false)
+const showCreate = ref(false)
+const createError = ref('')
 const pendingDelete = ref<{ id: string; name: string } | null>(null)
 
-async function createProject() {
+function openCreate() {
+  createError.value = ''
+  showCreate.value = true
+}
+
+async function createProject(name: string) {
   if (!isTauri()) {
-    error.value = '仅桌面端支持创建项目'
+    createError.value = '仅桌面端支持创建项目'
     return
   }
   busy.value = true
-  error.value = ''
+  createError.value = ''
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    const path = await invoke<string>('create_project')
+    const path = await invoke<string>('create_project', { name })
     addProject(path)
+    showCreate.value = false
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
+    createError.value = err instanceof Error ? err.message : String(err)
   } finally {
     busy.value = false
   }
 }
 
 async function openFolder(path: string) {
-  if (!isTauri()) return
-  const { openPath } = await import('@tauri-apps/plugin-opener')
-  await openPath(path)
+  if (!isTauri()) {
+    error.value = '仅桌面端支持打开文件夹'
+    return
+  }
+  error.value = ''
+  try {
+    const { openPath, revealItemInDir } = await import('@tauri-apps/plugin-opener')
+    try {
+      await openPath(path)
+    } catch {
+      await revealItemInDir(path)
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
 }
 
 function askRemove(id: string, name: string) {
@@ -58,7 +79,7 @@ function confirmRemove() {
           <p class="muted small">每个项目使用一个独立文件夹保存数据集、训练和推理产物。</p>
           <p class="muted small">项目固定创建在安装目录的 <code>projects</code> 文件夹中，不能更改位置。</p>
         </div>
-        <button class="button primary" :disabled="busy" @click="createProject">
+        <button class="button primary" @click="openCreate">
           {{ busy ? '创建中…' : '创建项目' }}
         </button>
       </div>
@@ -87,6 +108,14 @@ function confirmRemove() {
       </div>
     </div>
     <p v-if="!projects.length" class="muted small">还没有项目，点击右上角「创建项目」。</p>
+
+    <ProjectCreateDialog
+      :open="showCreate"
+      :busy="busy"
+      :error="createError"
+      @create="createProject"
+      @cancel="showCreate = false"
+    />
 
     <ConfirmDialog
       :open="Boolean(pendingDelete)"
