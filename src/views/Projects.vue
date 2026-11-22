@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { isTauri } from '../lib/engine'
 import {
   addProject,
@@ -11,6 +12,7 @@ import {
 
 const error = ref('')
 const busy = ref(false)
+const pendingDelete = ref<{ id: string; name: string } | null>(null)
 
 async function createProject() {
   if (!isTauri()) {
@@ -36,9 +38,14 @@ async function openFolder(path: string) {
   await openPath(path)
 }
 
-function remove(id: string, name: string) {
-  if (!window.confirm(`删除项目「${name}」？\n只从项目列表移除，不删除磁盘文件夹。`)) return
-  removeProject(id)
+function askRemove(id: string, name: string) {
+  pendingDelete.value = { id, name }
+}
+
+function confirmRemove() {
+  if (!pendingDelete.value) return
+  removeProject(pendingDelete.value.id)
+  pendingDelete.value = null
 }
 </script>
 
@@ -75,10 +82,20 @@ function remove(id: string, name: string) {
         </div>
         <div class="row gap">
           <button class="button ghost small" @click.stop="openFolder(project.path)">打开项目</button>
-          <button class="button ghost small" @click.stop="remove(project.id, project.name)">删除</button>
+          <button class="button ghost small" @click.stop="askRemove(project.id, project.name)">删除</button>
         </div>
       </div>
     </div>
     <p v-if="!projects.length" class="muted small">还没有项目，点击右上角「创建项目」。</p>
+
+    <ConfirmDialog
+      :open="Boolean(pendingDelete)"
+      title="删除项目"
+      :message="pendingDelete ? `确定删除项目「${pendingDelete.name}」？\n只会从项目列表移除，不会删除磁盘文件夹。` : ''"
+      confirm-text="删除"
+      danger
+      @confirm="confirmRemove"
+      @cancel="pendingDelete = null"
+    />
   </section>
 </template>
