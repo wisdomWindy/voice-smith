@@ -186,6 +186,7 @@ const statusDetail = computed(() => {
         <RouterLink to="/training" class="nav-item">训练</RouterLink>
         <RouterLink to="/" class="nav-item">推理</RouterLink>
         <RouterLink to="/tasks" class="nav-item">任务</RouterLink>
+        <RouterLink to="/settings" class="nav-item">设置</RouterLink>
       </nav>
 
       <div class="sidebar-foot">
@@ -202,7 +203,6 @@ const statusDetail = computed(() => {
             重启引擎
           </button>
         </div>
-        <RouterLink to="/settings" class="nav-item" style="margin-bottom:8px">设置</RouterLink>
         <div class="muted tiny">v{{ APP_VERSION }} · 本地优先 · 数据不出机</div>
       </div>
     </aside>
