@@ -30,19 +30,36 @@ const batchLines = computed(() => text.value.split('\n').map((line) => line.trim
 const canSubmit = computed(() => engine.ready && text.value.trim().length > 0 && !busy.value && !batchBusy.value)
 const batchRunning = computed(() => !!batch.value && batch.value.jobs.some((item) => ['queued', 'running'].includes(item.status)))
 
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError || /failed to fetch|load failed|networkerror/i.test(String(err))
+}
+
+async function loadVoices(allowRetry = true) {
+  if (!engine.ready || !engine.client) {
+    await engine.init()
+  }
+  if (!engine.client) return
+  try {
+    voices.value = await engine.client.voices()
+    if (!voices.value.some((voice) => voice.id === voiceId.value)) {
+      voiceId.value = voices.value[0]?.id ?? ''
+    }
+    await loadEmotions()
+    error.value = ''
+  } catch (err) {
+    // The sidecar can restart on a new port; refresh the client and retry once.
+    if (allowRetry && isNetworkError(err)) {
+      await engine.init()
+      if (engine.ready) return loadVoices(false)
+    }
+    error.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 watch(
   () => engine.status,
-  async (status) => {
-    if (status !== 'ready' || !engine.client) return
-    try {
-      voices.value = await engine.client.voices()
-      if (!voices.value.some((voice) => voice.id === voiceId.value)) {
-        voiceId.value = voices.value[0]?.id ?? ''
-      }
-      await loadEmotions()
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
-    }
+  (status) => {
+    if (status === 'ready') void loadVoices()
   },
   { immediate: true },
 )
