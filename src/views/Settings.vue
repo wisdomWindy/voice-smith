@@ -73,6 +73,9 @@ async function exportDiagnostics() {
           <h2>设置</h2>
           <p class="muted small">M0 只读展示引擎信息；数据目录、更新检查与模型资产在后续迭代。</p>
         </div>
+        <button class="button ghost" :disabled="updating" @click="checkUpdate">
+          {{ updating ? '检查中…' : '检查更新' }}
+        </button>
         <button class="button ghost" :disabled="exporting" @click="exportDiagnostics">
           {{ exporting ? '导出中…' : '导出诊断包' }}
         </button>
@@ -90,9 +93,8 @@ async function exportDiagnostics() {
         <span>更新检查</span><strong>{{ updateMessage || '自动检查' }}</strong>
       </div>
 
-      <div class="row gap" style="margin-top:12px">
-        <button class="button ghost" :disabled="updating" @click="checkUpdate">检查更新</button>
-        <button v-if="updateAvailable" class="button primary" :disabled="updating" @click="install">
+      <div v-if="updateAvailable" class="row gap" style="margin-top:12px">
+        <button class="button primary" :disabled="updating" @click="install">
           {{ updating ? `更新中 ${updateProgress}%` : `安装 ${updateVersion}` }}
         </button>
       </div>
