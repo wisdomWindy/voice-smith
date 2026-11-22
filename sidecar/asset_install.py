@@ -24,6 +24,7 @@ import os
 import shutil
 import subprocess
 import threading
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -104,39 +105,99 @@ def _find_7zr() -> Path:
     raise FileNotFoundError("7zr.exe not found; reinstall VoiceSmith")
 
 
-def _download(url: str, target: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": "VoiceSmith/0.1"})
-    with urllib.request.urlopen(request, timeout=60) as response, target.open("wb") as output:
-        total = int(response.headers.get("Content-Length") or 0)
-        done = 0
-        while True:
-            chunk = response.read(1024 * 1024)
-            if not chunk:
-                break
-            output.write(chunk)
-            done += len(chunk)
-            if total:
-                _update(progress=min(0.75, done / total * 0.75), stage="downloading",
-                        message=f"{done / 1024 ** 3:.2f} / {total / 1024 ** 3:.2f} GB")
+def _download(url: str, target: Path, expected_size: int = 0) -> None:
+    """Download with retry and HTTP Range resume; GitHub's CDN drops long TLS reads."""
+    if expected_size and target.exists() and target.stat().st_size == expected_size:
+        return
+    last: Exception | None = None
+    for attempt in range(8):
+        existing = target.stat().st_size if target.exists() else 0
+        if expected_size and existing == expected_size:
+            return
+        headers = {"User-Agent": "VoiceSmith/0.1"}
+        if existing:
+            headers["Range"] = f"bytes={existing}-"
+        try:
+            request = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(request, timeout=120) as response:
+                resumed = response.status == 206 and existing > 0
+                mode = "ab" if resumed else "wb"
+                if not resumed:
+                    existing = 0
+                remaining = int(response.headers.get("Content-Length") or 0)
+                total = existing + remaining
+                done = existing
+                with target.open(mode) as output:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        output.write(chunk)
+                        done += len(chunk)
+                        if total:
+                            _update(
+                                progress=min(0.75, done / total * 0.75),
+                                stage="downloading",
+                                message=f"{done / 1024 ** 3:.2f} / {total / 1024 ** 3:.2f} GB",
+                            )
+                if remaining and done < total:
+                    raise IOError(f"incomplete download: {done}/{total} bytes")
+                if expected_size and target.stat().st_size != expected_size:
+                    raise IOError(
+                        f"incomplete download: {target.stat().st_size}/{expected_size} bytes"
+                    )
+                return
+        except urllib.error.HTTPError as exc:
+            if exc.code == 416 and expected_size and existing == expected_size:
+                return
+            last = exc
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+        if attempt == 7:
+            break
+        delay = min(2 * (attempt + 1), 10)
+        _update(
+            stage="retrying",
+            message=f"网络中断，{delay}s 后续传（{attempt + 1}/8）",
+        )
+        import time
+
+        time.sleep(delay)
+    raise RuntimeError(f"download failed after retries: {last}")
 
 
 def _download_pack(url: str, target: Path) -> str:
     if not url.lower().endswith(".json"):
         _download(url, target)
         return ""
-    request = urllib.request.Request(url, headers={"User-Agent": "VoiceSmith/0.1"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        manifest = json.loads(response.read().decode("utf-8-sig"))
-    parts = manifest.get("parts") or []
+    manifest = None
+    last: Exception | None = None
+    for attempt in range(5):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": "VoiceSmith/0.1"})
+            with urllib.request.urlopen(request, timeout=120) as response:
+                manifest = json.loads(response.read().decode("utf-8-sig"))
+            break
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+            if attempt == 4:
+                raise RuntimeError(f"manifest download failed: {last}") from exc
+            import time
+
+            time.sleep(2 * (attempt + 1))
+    parts = (manifest or {}).get("parts") or []
     if not parts:
         raise ValueError("asset manifest has no parts")
+    for index, part in enumerate(parts):
+        part_url = str(part.get("url") or "")
+        if not part_url:
+            raise ValueError("asset manifest part has no url")
+        temp = target.with_suffix(f".part{index:02}")
+        size = int(part.get("size") or 0)
+        _download(part_url, temp, size)
     with target.open("wb") as output:
-        for index, part in enumerate(parts):
-            part_url = str(part.get("url") or "")
-            if not part_url:
-                raise ValueError("asset manifest part has no url")
+        for index in range(len(parts)):
             temp = target.with_suffix(f".part{index:02}")
-            _download(part_url, temp)
             with temp.open("rb") as source:
                 shutil.copyfileobj(source, output)
             temp.unlink(missing_ok=True)
@@ -207,6 +268,7 @@ def _run(url: str, expected: str) -> None:
     assert _DATA is not None
     pack = _DATA / "asset-pack.7z"
     extracted = _DATA / "asset-pack-extract"
+    ok = False
     try:
         if not url:
             raise ValueError("asset pack URL is not configured")
@@ -231,12 +293,16 @@ def _run(url: str, expected: str) -> None:
         if result.returncode != 0:
             raise RuntimeError(f"7zr failed: {result.stderr[-500:]}")
         _install_from_dir(extracted)
+        ok = True
         _update(installing=False, progress=1.0, stage="done", message="离线资产安装完成")
     except Exception as exc:  # noqa: BLE001
         _update(installing=False, progress=0, stage="failed", error=str(exc), message="安装失败")
     finally:
         shutil.rmtree(extracted, ignore_errors=True)
-        pack.unlink(missing_ok=True)
+        if ok:
+            pack.unlink(missing_ok=True)
+            for part in _DATA.glob("asset-pack.7z.part*"):
+                part.unlink(missing_ok=True)
 
 
 def start(url: str = "", expected_sha256: str = "") -> dict[str, Any]:
