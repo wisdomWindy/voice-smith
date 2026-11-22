@@ -1,14 +1,40 @@
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
-pydantic>=2.9,<3
+pydantic==2.10.6
 psutil>=6,<8
 
-funasr>=1.3.7
 modelscope
 soundfile
-numpy<2.0
+numpy==1.26.4
 librosa==0.10.2
 scipy
 numba==0.61.2
 llvmlite==0.44.0
 pyyaml
+
+# GPT-SoVITS engine imports (must be present in the offline core pack).
+# Pinned to the versions shipped by the V5 reference environment.
+tensorboard
+chardet
+tqdm==4.69.0
+ffmpeg-python==0.2.0
+cn2an==0.5.24
+pypinyin==0.55.0
+pyopenjtalk==0.4.1
+g2p-en==2.1.0
+jieba_fast==0.53
+jieba==0.42.1
+split-lang==2.1.0
+fast-langdetect==0.3.2
+wordsegment==1.3.1
+rotary-embedding-torch==0.9.1
+ToJyutping==3.2.0
+g2pk2==0.0.3
+ko-pron==1.3
+OpenCC==1.4.1
+sentencepiece==0.2.2
+nltk==3.10.0
+onnxruntime-gpu==1.19.2; platform_system == "Windows" or platform_system == "Linux"
+onnxruntime==1.19.2; platform_system == "Darwin"
+ctranslate2==4.8.1
+av==16.1.0

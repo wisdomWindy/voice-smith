@@ -599,7 +599,10 @@ fn runtime_status(app: tauri::AppHandle) -> RuntimeStatus {
         && script.exists()
         && deps.join("core").is_dir()
         && deps.join("torch").is_dir();
-    let installed = frozen.exists() || split_ready;
+    let marker_ok = fs::read_to_string(dir.join(".voicesmith-runtime"))
+        .map(|value| value.trim() == env!("CARGO_PKG_VERSION"))
+        .unwrap_or(false);
+    let installed = frozen.exists() || (split_ready && marker_ok);
     RuntimeStatus {
         installed,
         path: if frozen.exists() { frozen } else { py }.to_string_lossy().to_string(),
@@ -620,6 +623,10 @@ async fn install_runtime(
     .await
     .map_err(|e| format!("runtime install task failed: {e}"))?;
     if result.is_ok() {
+        let _ = fs::write(
+            runtime_dir(&app).join(".voicesmith-runtime"),
+            env!("CARGO_PKG_VERSION"),
+        );
         emit_runtime_progress(&app, 100, "Runtime installed");
     }
     result
