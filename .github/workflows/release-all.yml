@@ -103,7 +103,8 @@ jobs:
             --index-url https://download.pytorch.org/whl/cu128 `
             --extra-index-url https://pypi.org/simple `
             torch==2.7.1 torchaudio==2.7.1 `
-            -r sidecar/requirements-engine.txt      - name: Pack runtime components
+            -r sidecar/requirements-engine.txt
+      - name: Pack runtime components
         shell: pwsh
         run: |
           ./scripts/build-deps-pack.ps1 -Kind core -WheelsDir .cache/wheels-core
