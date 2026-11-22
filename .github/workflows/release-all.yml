@@ -167,12 +167,12 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - name: Reuse formal V5 weights manifest
+      - name: Reuse fixed V5 weights manifest
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: |
-          gh release download v0.2.8 --repo "${{ github.repository }}" -p 'assets-universal-manifest.json' -D base
+          gh release download v5-assets --repo "${{ github.repository }}" -p 'assets-universal-manifest-v5.json' -D base
           for p in windows-x64 macos-intel macos-arm64; do
-            cp base/assets-universal-manifest.json "assets-$p-manifest.json"
+            cp base/assets-universal-manifest-v5.json "assets-$p-manifest.json"
           done
           gh release upload "v$VERSION" assets-windows-x64-manifest.json assets-macos-intel-manifest.json assets-macos-arm64-manifest.json --repo "${{ github.repository }}" --clobber
 
