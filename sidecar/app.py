@@ -1121,8 +1121,35 @@ def asset_pack_install(req: AssetInstallRequest) -> dict[str, Any]:
 
 @app.post("/api/v1/previews", dependencies=[Depends(require_token)])
 def preview(req: PreviewRequest) -> Response:
-    if not get_voice(req.voice_id):
+    voice = get_voice(req.voice_id)
+    if not voice:
         raise HTTPException(status_code=404, detail="voice not found")
+    emotion = get_emotion(str(req.params.get("emotion_id") or ""))
+    ref = emotion["ref_audio_path"] if emotion else voice.get("ref_audio_path")
+    ref_text = emotion["ref_text"] if emotion else voice.get("ref_text")
+    if real_ready() and (not ref or not Path(ref).exists() or not ref_text):
+        raise HTTPException(status_code=400, detail="voice has no reference audio")
+    if real_ready():
+        preview_id = f"preview_{uuid.uuid4().hex[:12]}"
+        out = OUTPUT_DIR / f"{preview_id}.wav"
+        request = {
+            "id": preview_id,
+            "text": req.text,
+            "ref": str(ref),
+            "ref_text": ref_text,
+            "out": str(out),
+            "text_lang": str(voice.get("text_lang") or "zh"),
+            "prompt_lang": str(voice.get("prompt_lang") or "zh"),
+            "speed": req.params.get("speed", 1.0),
+            "seed": req.params.get("seed", -1),
+            "s1_model": voice.get("s1_model"),
+            "s2_model": voice.get("s2_model"),
+        }
+        try:
+            get_real_engine().synthesize(request)
+            return Response(content=out.read_bytes(), media_type="audio/wav")
+        finally:
+            out.unlink(missing_ok=True)
     duration = max(0.8, min(6.0, len(req.text) * 0.04))
     audio = make_wav(duration=duration, freq=440.0)
     return Response(
@@ -1137,6 +1164,8 @@ def create_synthesis(req: SynthesisRequest) -> dict[str, Any]:
     voice = get_voice(req.voice_id)
     if not voice:
         raise HTTPException(status_code=404, detail="voice not found")
+    if real_ready() and not voice.get("ref_audio_path"):
+        raise HTTPException(status_code=400, detail="voice has no reference audio")
     job = create_job(req.text, req.voice_id, req.params, req.request_id)
     if job["status"] in {"queued", "running"}:
         if real_ready() and voice.get("ref_audio_path"):
@@ -1162,6 +1191,8 @@ def create_batch(req: BatchSynthesisRequest) -> dict[str, Any]:
     voice = get_voice(req.voice_id)
     if not voice:
         raise HTTPException(status_code=404, detail="voice not found")
+    if real_ready() and not voice.get("ref_audio_path"):
+        raise HTTPException(status_code=400, detail="voice has no reference audio")
     texts = [text.strip() for text in req.texts if text.strip()]
     if not texts:
         raise HTTPException(status_code=400, detail="batch is empty")

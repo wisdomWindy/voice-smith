@@ -7,12 +7,11 @@ const engine = useEngineStore()
 const text = ref('先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。')
 const voices = ref<Voice[]>([])
 const emotions = ref<Emotion[]>([])
-const voiceId = ref('demo_hui')
+const voiceId = ref('builtin_female')
 const emotionId = ref('')
 const speed = ref(1)
 const volume = ref(80)
 const previewUrl = ref('')
-const outputUrl = ref('')
 const audio = ref<HTMLAudioElement | null>(null)
 const job = ref<Job | null>(null)
 const busy = ref(false)
@@ -21,13 +20,22 @@ const error = ref('')
 const mode = ref<'single' | 'batch'>('single')
 const batch = ref<Batch | null>(null)
 const batchBusy = ref(false)
-const batchUrl = ref('')
 let pollToken = 0
 
 const charCount = computed(() => text.value.length)
 const estimate = computed(() => Math.max(1, Math.round(text.value.length / 4.5)))
 const batchLines = computed(() => text.value.split('\n').map((line) => line.trim()).filter(Boolean))
-const canSubmit = computed(() => engine.ready && text.value.trim().length > 0 && !busy.value && !batchBusy.value)
+const selectableVoices = computed(() =>
+  voices.value.filter((voice) => engine.health?.mock || voice.id !== 'demo_edge'),
+)
+const canSubmit = computed(
+  () =>
+    engine.ready &&
+    Boolean(voiceId.value) &&
+    text.value.trim().length > 0 &&
+    !busy.value &&
+    !batchBusy.value,
+)
 const batchRunning = computed(() => !!batch.value && batch.value.jobs.some((item) => ['queued', 'running'].includes(item.status)))
 
 function isNetworkError(err: unknown): boolean {
@@ -41,8 +49,8 @@ async function loadVoices(allowRetry = true) {
   if (!engine.client) return
   try {
     voices.value = await engine.client.voices()
-    if (!voices.value.some((voice) => voice.id === voiceId.value)) {
-      voiceId.value = voices.value[0]?.id ?? ''
+    if (!selectableVoices.value.some((voice) => voice.id === voiceId.value)) {
+      voiceId.value = selectableVoices.value[0]?.id ?? ''
     }
     await loadEmotions()
     error.value = ''
@@ -114,8 +122,6 @@ async function submit() {
   busy.value = true
   error.value = ''
   job.value = null
-  revoke(outputUrl.value)
-  outputUrl.value = ''
   const token = ++pollToken
   try {
     const created = await engine.client.createSynthesis(
@@ -129,10 +135,6 @@ async function submit() {
       job.value = current
       if (['succeeded', 'failed', 'cancelled'].includes(current.status)) break
       await new Promise((resolve) => setTimeout(resolve, 600))
-    }
-    if (job.value?.status === 'succeeded') {
-      const blob = await engine.client.audioBlob(job.value.id)
-      outputUrl.value = URL.createObjectURL(blob)
     }
     if (job.value?.status === 'failed') {
       error.value = job.value.error || '合成失败'
@@ -155,31 +157,11 @@ async function cancel() {
   }
 }
 
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-async function downloadMp3() {
-  if (!engine.client || !job.value || job.value.status !== 'succeeded') return
-  try {
-    saveBlob(await engine.client.exportBlob(job.value.id, 'mp3'), `${job.value.id}.mp3`)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
-  }
-}
-
 async function submitBatch() {
   if (!engine.client || !batchLines.value.length) return
   batchBusy.value = true
   error.value = ''
   batch.value = null
-  revoke(batchUrl.value)
-  batchUrl.value = ''
   const token = ++pollToken
   try {
     const created = await engine.client.createBatch(
@@ -193,9 +175,6 @@ async function submitBatch() {
       batch.value = snapshot
       if (!snapshot.jobs.some((item) => ['queued', 'running'].includes(item.status))) break
       await new Promise((resolve) => setTimeout(resolve, 800))
-    }
-    if (batch.value?.jobs.some((item) => item.status === 'succeeded')) {
-      batchUrl.value = URL.createObjectURL(await engine.client.batchZip(batch.value.batch_id))
     }
     const failed = batch.value?.jobs.filter((item) => item.status === 'failed') ?? []
     if (failed.length) error.value = `${failed.length} 条失败；其余可下载。`
@@ -225,8 +204,6 @@ function switchMode(next: 'single' | 'batch') {
 onBeforeUnmount(() => {
   pollToken += 1
   revoke(previewUrl.value)
-  revoke(outputUrl.value)
-  revoke(batchUrl.value)
 })
 </script>
 
@@ -264,7 +241,8 @@ onBeforeUnmount(() => {
           <label class="field">
             <span>音色</span>
             <select v-model="voiceId" class="input">
-              <option v-for="voice in voices" :key="voice.id" :value="voice.id">
+              <option v-if="!selectableVoices.length" value="" disabled>没有可用音色</option>
+              <option v-for="voice in selectableVoices" :key="voice.id" :value="voice.id">
                 {{ voice.name }} · {{ voice.type }}
               </option>
             </select>
@@ -323,11 +301,9 @@ onBeforeUnmount(() => {
             <span>{{ job.progress }}%</span>
             <span>{{ job.status === 'succeeded' ? '已完成' : '处理中' }}</span>
           </div>
-          <div v-if="outputUrl" class="row gap">
-            <audio :src="outputUrl" controls />
-            <a class="button ghost" :href="outputUrl" download="voicesmith.wav">下载 WAV</a>
-            <button class="button ghost" @click="downloadMp3">导出 MP3</button>
-          </div>
+          <p v-if="job.status === 'succeeded'" class="muted small">
+            音频已保存，到 <RouterLink to="/tasks">任务</RouterLink> 页点「打开文件夹」查看。
+          </p>
         </div>
 
         <div v-if="mode === 'batch' && batch" class="job-block">
@@ -338,15 +314,15 @@ onBeforeUnmount(() => {
           <div class="progress">
             <div class="progress-bar" :style="{ width: `${batch.progress}%` }" />
           </div>
-          <div class="row gap" style="margin-top:8px">
-            <a v-if="batchUrl" class="button ghost" :href="batchUrl" :download="`${batch.batch_id}.zip`">下载 ZIP</a>
-          </div>
           <ol class="batch-list">
             <li v-for="item in batch.jobs" :key="item.id">
               <span class="ellipsis">{{ item.text }}</span>
               <span class="tag" :class="item.status">{{ item.status }}</span>
             </li>
           </ol>
+          <p v-if="batch.done === batch.total" class="muted small">
+            音频已保存，到 <RouterLink to="/tasks">任务</RouterLink> 页点「打开文件夹」查看。
+          </p>
         </div>
       </div>
 
