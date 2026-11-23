@@ -253,7 +253,13 @@ fn start_engine(app: &tauri::AppHandle, state: &EngineState) -> Result<EngineInf
     let runtime_root = runtime_root();
     let embedded_python = runtime_root.join(python_exe_name());
     let embedded_script = runtime_root.join("sidecar").join("app.py");
-    let embedded_ready = embedded_python.exists() && embedded_script.exists();
+    let deps_ready = runtime_root.join("deps").join("core").is_dir()
+        && runtime_root.join("deps").join("torch").is_dir();
+    let revision_ok = fs::read_to_string(runtime_root.join(".voicesmith-runtime"))
+        .map(|value| value.trim() == RUNTIME_REVISION)
+        .unwrap_or(false);
+    let embedded_ready =
+        embedded_python.exists() && embedded_script.exists() && deps_ready && revision_ok;
     let packaged = if embedded_ready {
         None
     } else {
@@ -1000,6 +1006,29 @@ fn run_runtime_bootstrap(python: &Path, runtime: &Path, log_path: &Path) -> Resu
     Ok(())
 }
 
+fn verify_runtime_imports(python: &Path, runtime: &Path) -> Result<(), String> {
+    let mut command = Command::new(python);
+    command
+        .args([
+            "-c",
+            "import fastapi, uvicorn, pydantic, torch, transformers, ffmpeg",
+        ])
+        .current_dir(runtime);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let output = command
+        .output()
+        .map_err(|e| format!("runtime verification failed to start: {e}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr);
+    Err(format!(
+        "运行时依赖不完整，请释放磁盘空间后重新安装运行时：{}",
+        detail.trim().chars().take(800).collect::<String>()
+    ))
+}
+
 fn install_runtime_blocking(
     app: &tauri::AppHandle,
     state: &EngineState,
@@ -1012,6 +1041,13 @@ fn install_runtime_blocking(
     emit_runtime_progress(app, 2, "Preparing runtime");
     let data_dir = install_root();
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+    let free = fs2::available_space(&data_dir).map_err(|e| e.to_string())?;
+    if free < 15 * 1024 * 1024 * 1024 {
+        return Err(format!(
+            "磁盘空间不足：运行时安装至少需要 15GB 可用空间，当前仅 {:.1}GB",
+            free as f64 / 1024.0 / 1024.0 / 1024.0
+        ));
+    }
     emit_runtime_progress(app, 4, "Reading runtime bundle");
     let plans = resolve_runtime_plan(&data_dir, url.trim(), sha256)?;
     let bundle_install = plans.iter().any(|plan| plan.name != "runtime");
@@ -1064,6 +1100,7 @@ fn install_runtime_blocking(
         fs::create_dir_all(&logs_dir).map_err(|e| e.to_string())?;
         let python = target.join(python_exe_name());
         run_runtime_bootstrap(&python, &target, &logs_dir.join("bootstrap.log"))?;
+        verify_runtime_imports(&python, &target)?;
         emit_runtime_progress(app, 99, "Starting engine");
     } else {
         emit_runtime_progress(app, 90, "Extracting runtime");
