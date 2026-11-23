@@ -1101,6 +1101,7 @@ fn install_runtime_blocking(
         let python = target.join(python_exe_name());
         run_runtime_bootstrap(&python, &target, &logs_dir.join("bootstrap.log"))?;
         verify_runtime_imports(&python, &target)?;
+        fs::write(target.join(".voicesmith-runtime"), RUNTIME_REVISION).map_err(|e| e.to_string())?;
         emit_runtime_progress(app, 99, "Starting engine");
     } else {
         emit_runtime_progress(app, 90, "Extracting runtime");
