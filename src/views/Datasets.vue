@@ -5,18 +5,30 @@ import { addDataset, datasets, deleteDataset } from '../lib/datasets'
 import { selectedProject } from '../lib/projects'
 
 const name = ref('')
-const rawAudio = ref('')
+const rawAudios = ref<string[]>([])
 const error = ref('')
+const message = ref('')
 const visibleDatasets = computed(() => datasets.value.filter((item) => item.projectId === selectedProject.value?.id))
+
+function stem(path: string): string {
+  return path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || '数据集'
+}
 
 async function browse() {
   if (!isTauri()) return
   const { invoke } = await import('@tauri-apps/api/core')
-  const path = await invoke<string | null>('pick_audio_file')
-  if (path) {
-    rawAudio.value = path
-    if (!name.value) name.value = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || '数据集'
+  const paths = await invoke<string[]>('pick_audio_files')
+  if (!paths.length) return
+  const merged = [...rawAudios.value]
+  for (const path of paths) {
+    if (!merged.some((item) => item.toLowerCase() === path.toLowerCase())) merged.push(path)
   }
+  rawAudios.value = merged
+  if (!name.value && merged.length === 1) name.value = stem(merged[0])
+}
+
+function removePending(path: string) {
+  rawAudios.value = rawAudios.value.filter((item) => item !== path)
 }
 
 function create() {
@@ -24,14 +36,23 @@ function create() {
     error.value = '请先在「项目」页面选择项目'
     return
   }
-  if (!rawAudio.value.trim()) {
+  if (!rawAudios.value.length) {
     error.value = '请选择原始音频'
     return
   }
   error.value = ''
-  addDataset(name.value, rawAudio.value.trim(), selectedProject.value.id)
+  const base = name.value.trim()
+  rawAudios.value.forEach((path, index) => {
+    const label = base
+      ? rawAudios.value.length > 1
+        ? `${base} ${index + 1}`
+        : base
+      : stem(path)
+    addDataset(label, path, selectedProject.value!.id)
+  })
+  message.value = `已创建 ${rawAudios.value.length} 个数据集`
   name.value = ''
-  rawAudio.value = ''
+  rawAudios.value = []
 }
 
 function remove(id: string) {
@@ -45,23 +66,38 @@ function remove(id: string) {
       <div class="card-head">
         <div>
           <h2>数据集</h2>
-          <p class="muted small">上传原始音频，创建一个待预处理的数据集。</p>
+          <p class="muted small">上传原始音频，创建一个待预处理的数据集；支持一次选择多个音频。</p>
         </div>
         <span class="tag">{{ visibleDatasets.length }} 个</span>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
+      <div v-if="message" class="banner" style="border-color:#1f4b3d;background:#0f1d19;color:#b8f5df">{{ message }}</div>
       <label class="field">
         <span>原始音频</span>
         <div class="row gap">
-          <input v-model="rawAudio" class="input" style="flex:1" placeholder="选择歌曲、录音或含人声的音频" />
-          <button v-if="isTauri()" class="button ghost" @click="browse">选择文件</button>
+          <input
+            class="input"
+            style="flex:1"
+            :value="rawAudios.length ? `已选择 ${rawAudios.length} 个文件` : ''"
+            readonly
+            placeholder="选择歌曲、录音或含人声的音频，可多选"
+          />
+          <button v-if="isTauri()" class="button ghost" @click="browse">选择音频</button>
         </div>
       </label>
+      <ul v-if="rawAudios.length" class="pending-files">
+        <li v-for="path in rawAudios" :key="path">
+          <span class="ellipsis">{{ path }}</span>
+          <button class="button ghost small" @click="removePending(path)">移除</button>
+        </li>
+      </ul>
       <label class="field">
-        <span>数据集名称</span>
-        <input v-model="name" class="input" placeholder="例如 我的声音" />
+        <span>数据集名称（可选）</span>
+        <input v-model="name" class="input" placeholder="留空则使用音频文件名；多个文件会自动加序号" />
       </label>
-      <button class="button primary" :disabled="!rawAudio.trim()" @click="create">创建数据集</button>
+      <button class="button primary" :disabled="!rawAudios.length" @click="create">
+        创建数据集
+      </button>
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -81,3 +117,28 @@ function remove(id: string) {
     </div>
   </section>
 </template>
+
+<style scoped>
+.pending-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.pending-files li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid #263349;
+  border-radius: 8px;
+  background: #0e141d;
+  font-size: 12px;
+}
+.pending-files li span {
+  flex: 1;
+  min-width: 0;
+  color: #aebbd0;
+}
+</style>

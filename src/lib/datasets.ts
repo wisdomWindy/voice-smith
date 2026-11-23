@@ -29,7 +29,7 @@ export function saveDatasets() {
 
 export function addDataset(name: string, rawAudio: string, projectId: string): DatasetRecord {
   const record: DatasetRecord = {
-    id: `ds_${Date.now().toString(36)}`,
+    id: `ds_${crypto.randomUUID()}`,
     projectId,
     name: name.trim() || `数据集 ${datasets.value.length + 1}`,
     rawAudio,

@@ -22,14 +22,22 @@ _MODEL = None
 _LOCK = threading.Lock()
 
 
+def _plain(path: Path) -> Path:
+    """Drop the Windows verbatim prefix; UVR5 opens its model JSON with open()."""
+    text = str(path)
+    if text.startswith("\\\\?\\"):
+        text = text[4:]
+    return Path(text)
+
+
 def configure(data_dir: Path, engine_root: Path) -> None:
     global _ROOT, _ENGINE, _WEIGHTS
     os.environ[engine_paths.DATA_ENV] = str(data_dir)
     _ROOT = data_dir / "uvr5"
     _ROOT.mkdir(parents=True, exist_ok=True)
     report = engine_paths.ensure_mounts(engine_root)
-    _ENGINE = Path(report.get("engine_root") or engine_root)
-    _WEIGHTS = engine_paths.weights_root()
+    _ENGINE = _plain(Path(report.get("engine_root") or engine_root))
+    _WEIGHTS = _plain(engine_paths.weights_root())
 
 
 def _load():
@@ -56,7 +64,7 @@ def _load():
 
 def separate(audio_path: Path) -> dict[str, Any]:
     assert _ROOT is not None
-    audio_path = audio_path.resolve()
+    audio_path = _plain(audio_path.resolve())
     if not audio_path.exists():
         raise FileNotFoundError(str(audio_path))
     work = _ROOT / uuid.uuid4().hex[:12]

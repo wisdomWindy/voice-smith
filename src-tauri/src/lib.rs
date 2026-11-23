@@ -1123,6 +1123,17 @@ fn pick_audio_file() -> Option<String> {
 }
 
 #[tauri::command]
+fn pick_audio_files() -> Vec<String> {
+    rfd::FileDialog::new()
+        .add_filter("Audio", &["wav", "mp3", "flac"])
+        .pick_files()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect()
+}
+
+#[tauri::command]
 fn pick_training_file() -> Option<String> {
     rfd::FileDialog::new()
         .add_filter("Dataset list", &["list", "txt"])
@@ -1152,6 +1163,7 @@ pub fn run() {
             runtime_status,
             install_runtime,
             pick_audio_file,
+            pick_audio_files,
             create_project,
             delete_output,
             pick_training_file
