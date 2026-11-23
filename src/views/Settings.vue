@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useEngineStore } from '../stores/engine'
-import { checkForUpdate, installUpdate } from '../lib/updater'
+import { checkForUpdate, installUpdate, openReleasePage } from '../lib/updater'
 
 const engine = useEngineStore()
 const exporting = ref(false)
@@ -9,6 +9,7 @@ const message = ref('')
 const updateMessage = ref('')
 const updateVersion = ref('')
 const updateAvailable = ref(false)
+const updateUrl = ref('')
 const updating = ref(false)
 const updateProgress = ref(0)
 
@@ -18,6 +19,7 @@ async function checkUpdate() {
     const result = await checkForUpdate()
     updateAvailable.value = result.available
     updateVersion.value = result.version ?? ''
+    updateUrl.value = result.downloadUrl ?? ''
     updateMessage.value = result.message
   } catch (err) {
     updateMessage.value = err instanceof Error ? err.message : String(err)
@@ -25,6 +27,15 @@ async function checkUpdate() {
 }
 
 async function install() {
+  if (updateUrl.value) {
+    try {
+      await openReleasePage(updateUrl.value)
+      updateMessage.value = '已打开发布页，请下载对应安装包'
+    } catch (err) {
+      updateMessage.value = err instanceof Error ? err.message : String(err)
+    }
+    return
+  }
   updating.value = true
   updateProgress.value = 0
   updateMessage.value = '下载中…'
@@ -95,7 +106,7 @@ async function exportDiagnostics() {
 
       <div v-if="updateAvailable" class="row gap" style="margin-top:12px">
         <button class="button primary" :disabled="updating" @click="install">
-          {{ updating ? `更新中 ${updateProgress}%` : `安装 ${updateVersion}` }}
+          {{ updating ? `更新中 ${updateProgress}%` : updateUrl ? `前往下载 ${updateVersion}` : `安装 ${updateVersion}` }}
         </button>
       </div>
       <progress v-if="updating" :value="updateProgress" max="100" style="width:100%;margin-top:8px"></progress>
