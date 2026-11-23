@@ -15,6 +15,8 @@ pyyaml
 # GPT-SoVITS engine imports (must be present in the offline core pack).
 # Pinned to the versions shipped by the V5 reference environment.
 tensorboard
+matplotlib==3.11.1
+tensorboardX==2.6.5
 chardet
 tqdm==4.69.0
 ffmpeg-python==0.2.0

@@ -8,3 +8,6 @@ pytorch-lightning==2.6.5
 funasr==1.3.22
 rotary-embedding-torch==0.9.1; platform_machine != "x86_64" or platform_system != "Darwin"
 rotary-embedding-torch==0.6.2; platform_machine == "x86_64" and platform_system == "Darwin"
+einx==0.4.3
+torch-complex==0.4.4
+pytorch-wpe==0.0.1
