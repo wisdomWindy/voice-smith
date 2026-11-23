@@ -26,9 +26,13 @@ async function cancelTraining(item: Training) {
   await load()
 }
 
-async function retryTraining(item: Training) {
+async function retryTraining(item: Training, force = false) {
   if (!engine.client) return
-  await engine.client.createTraining({ dataset_list: item.dataset_list, exp_name: item.exp_name })
+  await engine.client.createTraining({
+    dataset_list: item.dataset_list,
+    exp_name: item.exp_name,
+    force,
+  })
   await load()
 }
 
@@ -96,17 +100,19 @@ onUnmounted(() => {
     <div class="card" style="margin-top:16px">
       <div class="card-head"><h2>训练任务</h2></div>
       <table class="table">
-        <thead><tr><th>实验</th><th>状态</th><th>阶段</th><th>进度</th><th>操作</th></tr></thead>
+        <thead><tr><th>实验</th><th>状态</th><th>阶段</th><th>进度</th><th>详情</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="item in trainings" :key="item.id">
             <td>{{ item.exp_name }}</td><td>{{ item.status }}</td><td>{{ item.stage }}</td>
             <td>{{ percent(item.progress) }}%</td>
+            <td class="ellipsis">{{ item.detail || '—' }}</td>
             <td class="row gap">
               <button v-if="isActive(item.status)" class="button ghost small" @click="cancelTraining(item)">取消</button>
               <button v-if="['failed', 'cancelled'].includes(item.status)" class="button ghost small" @click="retryTraining(item)">重试</button>
+              <button v-if="item.status === 'failed'" class="button ghost small" @click="retryTraining(item, true)">强制重试</button>
             </td>
           </tr>
-          <tr v-if="!trainings.length"><td colspan="5" class="muted">还没有预处理/训练任务。</td></tr>
+          <tr v-if="!trainings.length"><td colspan="6" class="muted">还没有预处理/训练任务。</td></tr>
         </tbody>
       </table>
     </div>
