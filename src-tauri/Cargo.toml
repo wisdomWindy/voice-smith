@@ -1,6 +1,6 @@
 [package]
 name = "voice-smith"
-version = "0.2.23"
+version = "0.2.24"
 description = "GPT-SoVITS desktop TTS workshop"
 authors = ["voice-smith"]
 edition = "2024"

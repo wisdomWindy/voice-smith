@@ -15,6 +15,10 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+// Bump only when the runtime dependency layout changes; UI-only releases keep
+// the installed runtime instead of forcing another multi-GB download.
+const RUNTIME_REVISION: &str = "v5-deps-2026-11-23";
+
 #[derive(Clone, Serialize)]
 struct RuntimeProgress {
     percent: u8,
@@ -80,8 +84,7 @@ fn project_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn install_root() -> PathBuf {
-    if cfg!(debug_assertions) {
+fn install_root() -> PathBuf {    if cfg!(debug_assertions) {
         return project_root();
     }
     std::env::current_exe()
@@ -600,7 +603,7 @@ fn runtime_status(app: tauri::AppHandle) -> RuntimeStatus {
         && deps.join("core").is_dir()
         && deps.join("torch").is_dir();
     let marker_ok = fs::read_to_string(dir.join(".voicesmith-runtime"))
-        .map(|value| value.trim() == env!("CARGO_PKG_VERSION"))
+        .map(|value| value.trim() == RUNTIME_REVISION)
         .unwrap_or(false);
     let installed = frozen.exists() || (split_ready && marker_ok);
     RuntimeStatus {
@@ -625,7 +628,7 @@ async fn install_runtime(
     if result.is_ok() {
         let _ = fs::write(
             runtime_dir(&app).join(".voicesmith-runtime"),
-            env!("CARGO_PKG_VERSION"),
+            RUNTIME_REVISION,
         );
         emit_runtime_progress(&app, 100, "Runtime installed");
     }
