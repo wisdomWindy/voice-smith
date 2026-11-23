@@ -18,7 +18,7 @@ def main() -> None:
         }
     }
     for suffix, target in (
-        ("macos-arm64", "darwin-aarch64"),
+        ("macos-apple-silicon", "darwin-aarch64"),
         ("macos-intel", "darwin-x86_64"),
     ):
         sig = Path(f"sigs/VoiceSmith-{version}-{suffix}.app.tar.gz.sig")
