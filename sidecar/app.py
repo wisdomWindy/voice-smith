@@ -1081,6 +1081,14 @@ def training_cancel(training_id: str) -> dict[str, Any]:
         return record
     update_training(training_id, status="cancelling", detail="正在取消")
     training_runner.request_cancel(training_id)
+    # Give the worker a moment to tear down the process tree so one click is
+    # enough; force the terminal state if it is stuck between stages.
+    for _ in range(50):
+        time.sleep(0.1)
+        current = get_training(training_id)
+        if current and current["status"] in {"succeeded", "failed", "cancelled"}:
+            return current
+    update_training(training_id, status="cancelled", detail="已取消")
     return get_training(training_id) or record
 
 

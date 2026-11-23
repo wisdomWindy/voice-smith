@@ -9,6 +9,7 @@ const engine = useEngineStore()
 const items = ref<Training[]>([])
 const error = ref('')
 const starting = ref(false)
+const cancelling = ref(false)
 const selectedDatasetId = ref('')
 const expName = ref('my_voice')
 const s1Epochs = ref(5)
@@ -56,9 +57,14 @@ async function start() {
 
 async function cancel() {
   const active = items.value.find((item) => ['queued', 'running', 'cancelling'].includes(item.status))
-  if (!engine.client || !active) return
-  await engine.client.cancelTraining(active.id)
-  await load()
+  if (!engine.client || !active || cancelling.value) return
+  cancelling.value = true
+  try {
+    await engine.client.cancelTraining(active.id)
+    await load()
+  } finally {
+    cancelling.value = false
+  }
 }
 
 watch(
@@ -113,7 +119,7 @@ onUnmounted(() => {
       </div>
       <div class="row gap" style="margin-top:14px">
         <button class="button primary" :disabled="!canStart" @click="start">{{ starting ? '启动中…' : '开始训练' }}</button>
-        <button v-if="busy" class="button ghost" @click="cancel">取消训练</button>
+        <button v-if="busy" class="button ghost" :disabled="cancelling" @click="cancel">{{ cancelling ? '停止中…' : '取消训练' }}</button>
       </div>
     </div>
 
