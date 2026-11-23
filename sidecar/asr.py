@@ -48,14 +48,16 @@ def _model():
     with _LOCK:
         if _MODEL is None:
             from funasr import AutoModel
-            import torch
 
             asr, vad, punc = _models()
+            # FunASR's Paraformer + punc stack can hit CUDA OOM while the main
+            # TTS worker is loaded. ASR is short-lived; CPU is stable and keeps
+            # VRAM for GPT-SoVITS.
             _MODEL = AutoModel(
                 model=str(asr),
                 vad_model=str(vad),
                 punc_model=str(punc),
-                device="cuda" if torch.cuda.is_available() else "cpu",
+                device=os.environ.get("VOICE_SMITH_ASR_DEVICE", "cpu"),
                 disable_update=True,
             )
         return _MODEL

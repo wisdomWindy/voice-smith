@@ -17,7 +17,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 // Bump only when the runtime dependency layout changes; UI-only releases keep
 // the installed runtime instead of forcing another multi-GB download.
-const RUNTIME_REVISION: &str = "v5-deps-2026-11-23";
+const RUNTIME_REVISION: &str = "v5-deps-2026-11-23.2";
 
 #[derive(Clone, Serialize)]
 struct RuntimeProgress {
