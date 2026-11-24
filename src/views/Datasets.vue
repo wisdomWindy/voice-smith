@@ -41,16 +41,9 @@ function create() {
     return
   }
   error.value = ''
-  const base = name.value.trim()
-  rawAudios.value.forEach((path, index) => {
-    const label = base
-      ? rawAudios.value.length > 1
-        ? `${base} ${index + 1}`
-        : base
-      : stem(path)
-    addDataset(label, path, selectedProject.value!.id)
-  })
-  message.value = `已创建 ${rawAudios.value.length} 个数据集`
+  const label = name.value.trim() || stem(rawAudios.value[0])
+  addDataset(label, rawAudios.value, selectedProject.value.id)
+  message.value = `已创建 1 个数据集，包含 ${rawAudios.value.length} 个音频`
   name.value = ''
   rawAudios.value = []
 }
@@ -66,7 +59,7 @@ function remove(id: string) {
       <div class="card-head">
         <div>
           <h2>数据集</h2>
-          <p class="muted small">上传原始音频，创建一个待预处理的数据集；支持一次选择多个音频。</p>
+          <p class="muted small">上传原始音频，创建一个待预处理的数据集；一次可选中多个音频，它们属于同一个数据集。</p>
         </div>
         <span class="tag">{{ visibleDatasets.length }} 个</span>
       </div>
@@ -93,7 +86,7 @@ function remove(id: string) {
       </ul>
       <label class="field">
         <span>数据集名称（可选）</span>
-        <input v-model="name" class="input" placeholder="留空则使用音频文件名；多个文件会自动加序号" />
+        <input v-model="name" class="input" placeholder="留空则使用第一个音频的文件名" />
       </label>
       <button class="button primary" :disabled="!rawAudios.length" @click="create">
         创建数据集
@@ -108,7 +101,7 @@ function remove(id: string) {
           <tr v-for="item in visibleDatasets" :key="item.id">
             <td>{{ item.name }}</td>
             <td>{{ item.status === 'raw' ? '待预处理' : '已预处理' }}</td>
-            <td class="ellipsis">{{ item.rawAudio }}</td>
+            <td class="ellipsis">{{ item.rawAudios.length }} 个音频 · {{ item.rawAudios[0] }}</td>
             <td><button class="button ghost small" @click="remove(item.id)">删除</button></td>
           </tr>
           <tr v-if="!visibleDatasets.length"><td colspan="4" class="muted">还没有数据集。</td></tr>

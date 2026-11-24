@@ -327,6 +327,18 @@ export class EngineClient {
     return await response.json()
   }
 
+  async preprocessDataset(
+    audioPaths: string[],
+    language = 'zh',
+    speaker = 'speaker',
+  ): Promise<{ list_path: string; count: number; total_duration: number; slices_dir: string; skipped: string[] }> {
+    const response = await this.request('/api/v1/datasets/preprocess', {
+      method: 'POST',
+      body: JSON.stringify({ audio_paths: audioPaths, language, speaker }),
+    })
+    return await response.json()
+  }
+
   async uvr5(audioPath: string): Promise<{ vocal_path: string; instrumental_path: string | null }> {
     const response = await this.request('/api/v1/uvr5', {
       method: 'POST',

@@ -4,7 +4,7 @@ export type DatasetRecord = {
   id: string
   projectId: string
   name: string
-  rawAudio: string
+  rawAudios: string[]
   createdAt: string
   status: 'raw' | 'preprocessed'
   listPath?: string
@@ -13,9 +13,30 @@ export type DatasetRecord = {
 
 const KEY = 'voicesmith.datasets.v1'
 
+function normalize(item: Partial<DatasetRecord> & { rawAudio?: string }): DatasetRecord {
+  const rawAudios = item.rawAudios?.length
+    ? item.rawAudios
+    : item.rawAudio
+      ? [item.rawAudio]
+      : []
+  return {
+    id: item.id || `ds_${crypto.randomUUID()}`,
+    projectId: item.projectId || '',
+    name: item.name || '数据集',
+    rawAudios,
+    createdAt: item.createdAt || new Date().toISOString(),
+    status: item.status || 'raw',
+    listPath: item.listPath,
+    slicesDir: item.slicesDir,
+  }
+}
+
 function load(): DatasetRecord[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]') as DatasetRecord[]
+    const parsed = JSON.parse(localStorage.getItem(KEY) || '[]') as (Partial<DatasetRecord> & {
+      rawAudio?: string
+    })[]
+    return parsed.map(normalize)
   } catch {
     return []
   }
@@ -27,12 +48,12 @@ export function saveDatasets() {
   localStorage.setItem(KEY, JSON.stringify(datasets.value))
 }
 
-export function addDataset(name: string, rawAudio: string, projectId: string): DatasetRecord {
+export function addDataset(name: string, rawAudios: string[], projectId: string): DatasetRecord {
   const record: DatasetRecord = {
     id: `ds_${crypto.randomUUID()}`,
     projectId,
     name: name.trim() || `数据集 ${datasets.value.length + 1}`,
-    rawAudio,
+    rawAudios,
     createdAt: new Date().toISOString(),
     status: 'raw',
   }

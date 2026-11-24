@@ -617,6 +617,13 @@ class SliceRequest(BaseModel):
     max_sec: float = 15.0
 
 
+class DatasetPreprocessRequest(BaseModel):
+    audio_paths: list[str] = Field(min_length=1, max_length=500)
+    language: str = "zh"
+    speaker: str = "speaker"
+    min_sec: float = 3.0
+
+
 class AssetInstallRequest(BaseModel):
     url: str = ""
     sha256: str = ""
@@ -963,6 +970,41 @@ def dataset_slice(req: SliceRequest) -> dict[str, Any]:
         return slice_engine.slice_audio(path, DATA_DIR / "datasets" / "slices", req.min_sec, req.max_sec)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"slice failed: {exc}") from exc
+
+
+@app.post("/api/v1/datasets/preprocess", dependencies=[Depends(require_token)])
+def dataset_preprocess(req: DatasetPreprocessRequest) -> dict[str, Any]:
+    combined = DATA_DIR / "datasets" / "slices" / f"slice_{uuid.uuid4().hex[:10]}"
+    combined.mkdir(parents=True, exist_ok=True)
+    skipped: list[str] = []
+    for index, raw in enumerate(req.audio_paths):
+        source = Path(raw).expanduser().resolve()
+        if not source.exists():
+            skipped.append(f"{source.name}: not found")
+            continue
+        try:
+            vocal = uvr5_engine.separate(source)
+            sliced = slice_engine.slice_audio(
+                Path(vocal["vocal_path"]),
+                combined.parent,
+                req.min_sec,
+                15.0,
+            )
+            for item in sliced["items"]:
+                src = Path(item["path"])
+                shutil.copy2(src, combined / f"{index:03d}_{src.name}")
+        except Exception as exc:  # noqa: BLE001
+            skipped.append(f"{source.name}: {exc}")
+    if not any(combined.iterdir()):
+        raise HTTPException(
+            status_code=400,
+            detail="no usable vocals: " + "; ".join(skipped[:5]),
+        )
+    try:
+        result = asr_engine.transcribe_folder(combined, req.language, req.speaker)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"ASR failed: {exc}") from exc
+    return {**result, "slices_dir": str(combined), "skipped": skipped}
 
 
 @app.post("/api/v1/trainings", status_code=202, dependencies=[Depends(require_token)])

@@ -17,22 +17,23 @@ const canRun = computed(() => Boolean(selected.value && engine.client && !busy.v
 
 async function run() {
   if (!engine.client || !selected.value) return
+  if (!selected.value.rawAudios.length) {
+    error.value = '数据集没有原始音频'
+    return
+  }
   busy.value = true
   error.value = ''
   message.value = ''
   try {
-    step.value = '人声分离（UVR5）'
-    const uvr = await engine.client.uvr5(selected.value.rawAudio)
-    step.value = '切片为 5–15 秒 48k 单声道'
-    const sliced = await engine.client.sliceAudio(uvr.vocal_path)
-    step.value = 'ASR 转写并生成训练清单'
-    const asr = await engine.client.transcribeFolder(sliced.output_dir)
+    step.value = `UVR5 人声分离 · 切片 · ASR（${selected.value.rawAudios.length} 个音频）`
+    const result = await engine.client.preprocessDataset(selected.value.rawAudios)
     updateDataset(selected.value.id, {
       status: 'preprocessed',
-      listPath: asr.list_path,
-      slicesDir: sliced.output_dir,
+      listPath: result.list_path,
+      slicesDir: result.slices_dir,
     })
-    message.value = `预处理完成：${asr.count} 条，清单 ${asr.list_path}`
+    const skipped = result.skipped.length ? `，跳过 ${result.skipped.length} 个` : ''
+    message.value = `预处理完成：${result.count} 条 · ${result.total_duration.toFixed(1)} 秒${skipped}`
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -40,6 +41,7 @@ async function run() {
     step.value = ''
   }
 }
+
 </script>
 
 <template>
@@ -57,7 +59,7 @@ async function run() {
         <span>数据集</span>
         <select v-model="selectedId" class="input">
           <option v-for="item in visibleDatasets" :key="item.id" :value="item.id">
-            {{ item.name }} · {{ item.status === 'raw' ? '待预处理' : '已预处理' }}
+            {{ item.name }} · {{ item.rawAudios.length }} 个音频 · {{ item.status === 'raw' ? '待预处理' : '已预处理' }}
           </option>
         </select>
       </label>
