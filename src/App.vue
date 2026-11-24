@@ -22,6 +22,7 @@ const runtimeBusy = ref(false)
 const runtimeError = ref('')
 const runtimeProgress = ref(0)
 const runtimeStage = ref('')
+const autoInstallAssets = ref(false)
 let runtimeUnlisten: (() => void) | undefined
 
 async function installRuntimePack() {
@@ -36,7 +37,7 @@ async function installRuntimePack() {
       runtimeStage.value = '安装完成'
       runtimeChecking.value = false
       showRuntime.value = false
-      await checkAssets()
+      autoInstallAssets.value = true
     } else {
       runtimeError.value = engine.error || '运行时安装失败'
     }
@@ -52,6 +53,10 @@ async function checkAssets() {
     const state = await engine.client.assetPack()
     pack.value = state
     showAssets.value = !report.ready && !state.installed
+    if (showAssets.value && autoInstallAssets.value) {
+      autoInstallAssets.value = false
+      void startPack()
+    }
   } catch {
     showAssets.value = false
   }
@@ -61,6 +66,7 @@ async function startPack() {
   if (!engine.client) return
   packBusy.value = true
   try {
+    autoInstallAssets.value = false
     pack.value = await engine.client.installAssetPack(assetsManifest(platform.value))
     window.clearInterval(packTimer)
     packTimer = window.setInterval(async () => {
@@ -258,7 +264,7 @@ const statusDetail = computed(() => {
     <div class="modal">
       <h2>安装运行时</h2>
       <p class="muted">
-        首次使用需要下载 VoiceSmith 运行时（Python + PyTorch/CUDA，约 2–3GB 压缩包）。安装后还需下载离线资产包。
+        首次使用需要下载 VoiceSmith 运行时与离线资产（Python + PyTorch/CUDA + 模型权重）。只需确认一次，后续步骤自动完成。
       </p>
       <p v-if="runtimeChecking" class="muted">Checking runtime...</p>
       <div v-if="runtimeBusy" class="job-block">
@@ -270,7 +276,7 @@ const statusDetail = computed(() => {
       </div>
       <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
       <button v-if="!runtimeChecking" class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
-        {{ runtimeBusy ? '下载安装中…' : '下载并安装运行时' }}
+        {{ runtimeBusy ? '下载安装中…' : '一键安装运行时与离线资产' }}
       </button>
     </div>
   </div>
