@@ -1130,6 +1130,22 @@ fn install_runtime_blocking(
 }
 
 #[tauri::command]
+fn delete_project(path: String) -> Result<(), String> {
+    let root = install_root().join("projects");
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let root = root.canonicalize().map_err(|e| e.to_string())?;
+    let target = PathBuf::from(&path);
+    if !target.exists() {
+        return Ok(());
+    }
+    let target = target.canonicalize().map_err(|e| e.to_string())?;
+    if target == root || !target.starts_with(&root) {
+        return Err("refusing to delete outside the projects folder".into());
+    }
+    fs::remove_dir_all(&target).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn delete_output(path: String) -> Result<(), String> {
     let target = PathBuf::from(&path).canonicalize().map_err(|e| e.to_string())?;
     let root = install_root().join("data").join("outputs");
@@ -1221,6 +1237,7 @@ pub fn run() {
             pick_audio_file,
             pick_audio_files,
             create_project,
+            delete_project,
             delete_output,
             pick_training_file
         ])

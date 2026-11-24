@@ -15,7 +15,8 @@ const error = ref('')
 const busy = ref(false)
 const showCreate = ref(false)
 const createError = ref('')
-const pendingDelete = ref<{ id: string; name: string } | null>(null)
+const pendingDelete = ref<{ id: string; name: string; path: string } | null>(null)
+const deleting = ref(false)
 
 function openCreate() {
   createError.value = ''
@@ -59,14 +60,24 @@ async function openFolder(path: string) {
   }
 }
 
-function askRemove(id: string, name: string) {
-  pendingDelete.value = { id, name }
+function askRemove(id: string, name: string, path: string) {
+  pendingDelete.value = { id, name, path }
 }
 
-function confirmRemove() {
-  if (!pendingDelete.value) return
-  removeProject(pendingDelete.value.id)
-  pendingDelete.value = null
+async function confirmRemove() {
+  if (!pendingDelete.value || deleting.value) return
+  deleting.value = true
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('delete_project', { path: pendingDelete.value.path })
+    removeProject(pendingDelete.value.id)
+    pendingDelete.value = null
+    error.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    deleting.value = false
+  }
 }
 </script>
 
@@ -103,7 +114,7 @@ function confirmRemove() {
         </div>
         <div class="row gap">
           <button class="button ghost small" @click.stop="openFolder(project.path)">打开项目</button>
-          <button class="button ghost small" @click.stop="askRemove(project.id, project.name)">删除</button>
+          <button class="button ghost small" @click.stop="askRemove(project.id, project.name, project.path)">删除</button>
         </div>
       </div>
     </div>
@@ -120,7 +131,7 @@ function confirmRemove() {
     <ConfirmDialog
       :open="Boolean(pendingDelete)"
       title="删除项目"
-      :message="pendingDelete ? `确定删除项目「${pendingDelete.name}」？\n只会从项目列表移除，不会删除磁盘文件夹。` : ''"
+      :message="pendingDelete ? `确定删除项目「${pendingDelete.name}」？\n项目文件夹及其中所有数据将被永久删除。` : ''"
       confirm-text="删除"
       danger
       @confirm="confirmRemove"
