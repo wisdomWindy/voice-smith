@@ -36,6 +36,13 @@ def _weights() -> Path:
     return engine_paths.weights_root()
 
 
+def _plain(path: Path) -> Path:
+    text = str(path)
+    if text.startswith("\\\\?\\"):
+        text = text[4:]
+    return Path(text)
+
+
 def build_config(engine: Path, data_dir: Path) -> Path:
     """Write a data-dir config with absolute asset paths; engine stays read-only."""
     weights = _weights()
@@ -85,11 +92,12 @@ def main() -> int:
     mount_report = engine_paths.ensure_mounts(engine)
     if mount_report.get("error"):
         print(json.dumps({"event": "warning", "mounts": mount_report}), file=sys.stderr, flush=True)
-    engine = Path(mount_report.get("engine_root") or engine).resolve()
+    engine = _plain(Path(mount_report.get("engine_root") or engine).resolve())
     os.chdir(engine)
     os.environ["PATH"] = f"{engine}{os.pathsep}{os.environ.get('PATH', '')}"
     sys.path.insert(0, str(engine))
     sys.path.insert(0, str(engine / "GPT_SoVITS"))
+    sys.path.insert(0, str(engine / "GPT_SoVITS" / "eres2net"))
     # chinese2.py reads `bert_path` for its G2PW model_source fallback.
     os.environ.setdefault("bert_path", str(_weights() / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large"))
 

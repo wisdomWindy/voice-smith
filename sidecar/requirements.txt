@@ -7,10 +7,12 @@ modelscope
 soundfile
 numpy==1.26.4
 librosa==0.10.2
+resampy==0.4.2
 scipy
 numba==0.61.2
 llvmlite==0.44.0
 pyyaml
+setuptools==68.2.2
 
 # GPT-SoVITS engine imports (must be present in the offline core pack).
 # Pinned to the versions shipped by the V5 reference environment.
