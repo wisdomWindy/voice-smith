@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { isTauri } from '../lib/engine'
 import { addDataset, datasets, deleteDataset } from '../lib/datasets'
 import { selectedProject } from '../lib/projects'
@@ -8,7 +9,10 @@ const name = ref('')
 const rawAudios = ref<string[]>([])
 const error = ref('')
 const message = ref('')
+const checked = ref<string[]>([])
+const deleteIds = ref<string[] | null>(null)
 const visibleDatasets = computed(() => datasets.value.filter((item) => item.projectId === selectedProject.value?.id))
+const allChecked = computed(() => visibleDatasets.value.length > 0 && checked.value.length === visibleDatasets.value.length)
 
 function stem(path: string): string {
   return path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || '数据集'
@@ -48,8 +52,26 @@ function create() {
   rawAudios.value = []
 }
 
-function remove(id: string) {
-  if (window.confirm('删除这个数据集？原始音频文件不会被删除。')) deleteDataset(id)
+function toggle(id: string) {
+  checked.value = checked.value.includes(id)
+    ? checked.value.filter((item) => item !== id)
+    : [...checked.value, id]
+}
+
+function toggleAll(event: Event) {
+  const on = (event.target as HTMLInputElement).checked
+  checked.value = on ? visibleDatasets.value.map((item) => item.id) : []
+}
+
+function askDelete(ids: string[]) {
+  if (ids.length) deleteIds.value = ids
+}
+
+function confirmDelete() {
+  if (!deleteIds.value) return
+  for (const id of deleteIds.value) deleteDataset(id)
+  checked.value = checked.value.filter((id) => !deleteIds.value!.includes(id))
+  deleteIds.value = null
 }
 </script>
 
@@ -94,20 +116,35 @@ function remove(id: string) {
     </div>
 
     <div class="card" style="margin-top:16px">
-      <div class="card-head"><h2>数据集列表</h2></div>
+      <div class="card-head">
+        <h2>数据集列表</h2>
+        <button v-if="checked.length" class="button danger small" @click="askDelete(checked)">
+          批量删除（{{ checked.length }}）
+        </button>
+      </div>
       <table class="table">
-        <thead><tr><th>名称</th><th>状态</th><th>原始音频</th><th>操作</th></tr></thead>
+        <thead><tr><th class="check-col"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th><th>名称</th><th>状态</th><th>原始音频</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="item in visibleDatasets" :key="item.id">
+            <td class="check-col"><input type="checkbox" :checked="checked.includes(item.id)" @change="toggle(item.id)" /></td>
             <td>{{ item.name }}</td>
             <td>{{ item.status === 'raw' ? '待预处理' : '已预处理' }}</td>
             <td class="ellipsis">{{ item.rawAudios.length }} 个音频 · {{ item.rawAudios[0] }}</td>
-            <td><button class="button ghost small" @click="remove(item.id)">删除</button></td>
+            <td><button class="button ghost small" @click="askDelete([item.id])">删除</button></td>
           </tr>
-          <tr v-if="!visibleDatasets.length"><td colspan="4" class="muted">还没有数据集。</td></tr>
+          <tr v-if="!visibleDatasets.length"><td colspan="5" class="muted">还没有数据集。</td></tr>
         </tbody>
       </table>
     </div>
+    <ConfirmDialog
+      :open="Boolean(deleteIds)"
+      title="删除数据集"
+      :message="deleteIds ? `确定删除选中的 ${deleteIds.length} 个数据集？\n只删除数据集记录，不删除原始音频文件。` : ''"
+      confirm-text="删除"
+      danger
+      @confirm="confirmDelete"
+      @cancel="deleteIds = null"
+    />
   </section>
 </template>
 
@@ -128,6 +165,13 @@ function remove(id: string) {
   border-radius: 8px;
   background: #0e141d;
   font-size: 12px;
+}
+.check-col {
+  width: 36px;
+  text-align: center;
+}
+.check-col input {
+  accent-color: #6f8fff;
 }
 .pending-files li span {
   flex: 1;
