@@ -625,6 +625,10 @@ async fn install_runtime(
     sha256: Option<String>,
 ) -> Result<EngineInfo, String> {
     let app_for_task = app.clone();
+    {
+        let state = app.state::<EngineState>();
+        stop_engine(state.inner());
+    }
     let result = tauri::async_runtime::spawn_blocking(move || {
         let state = app_for_task.state::<EngineState>();
         install_runtime_blocking(&app_for_task, state.inner(), url, sha256)
@@ -878,6 +882,17 @@ fn move_dir_contents(from: &Path, to: &Path) -> Result<(), String> {
 
 /// Base pack layout is `python/` + `sidecar/`. The Python payload is flattened
 /// into <runtime> so the runtime is <runtime>\\python.exe with <runtime>\\sidecar.
+fn remove_runtime_dir(runtime: &Path) -> Result<(), String> {
+    if !runtime.exists() {
+        return Ok(());
+    }
+    fs::remove_dir_all(runtime).map_err(|e| {
+        format!(
+            "无法清理旧运行时，可能仍被 VoiceSmith 占用；请重启应用后重试: {e}"
+        )
+    })
+}
+
 fn install_runtime_base(
     seven: &Path,
     pack: &Path,
@@ -888,7 +903,7 @@ fn install_runtime_base(
     extract_7zr(seven, pack, staging)?;
     let python_dir = staging.join("python");
     let has_python_dir = python_dir.is_dir();
-    let _ = fs::remove_dir_all(runtime);
+    remove_runtime_dir(runtime)?;
     fs::create_dir_all(runtime).map_err(|e| e.to_string())?;
     if has_python_dir {
         move_dir_contents(&python_dir, runtime)?;
@@ -962,7 +977,7 @@ fn install_legacy_pack(
 ) -> Result<(), String> {
     let _ = fs::remove_dir_all(staging);
     extract_7zr(seven, pack, staging)?;
-    let _ = fs::remove_dir_all(runtime);
+    remove_runtime_dir(runtime)?;
     fs::create_dir_all(runtime).map_err(|e| e.to_string())?;
     move_dir_contents(staging, runtime)?;
     let _ = fs::remove_dir_all(staging);
