@@ -36,7 +36,8 @@ async function installRuntimePack() {
       runtimeProgress.value = 100
       runtimeStage.value = '安装完成'
       runtimeChecking.value = false
-      showRuntime.value = false
+      showRuntime.value = true
+      runtimeStage.value = '运行时完成，正在安装离线资产'
       autoInstallAssets.value = true
     } else {
       runtimeError.value = engine.error || '运行时安装失败'
@@ -52,9 +53,11 @@ async function checkAssets() {
     const report = await engine.client.assets()
     const state = await engine.client.assetPack()
     pack.value = state
-    showAssets.value = !report.ready && !state.installed
-    if (showAssets.value && autoInstallAssets.value) {
+    const missing = !report.ready && !state.installed
+    showAssets.value = missing && !autoInstallAssets.value
+    if (missing && autoInstallAssets.value) {
       autoInstallAssets.value = false
+      showRuntime.value = true
       void startPack()
     }
   } catch {
@@ -65,6 +68,7 @@ async function checkAssets() {
 async function startPack() {
   if (!engine.client) return
   packBusy.value = true
+  runtimeError.value = ''
   try {
     autoInstallAssets.value = false
     pack.value = await engine.client.installAssetPack(assetsManifest(platform.value))
@@ -78,12 +82,19 @@ async function startPack() {
         packBusy.value = false
         if (state.installed) {
           showAssets.value = false
+          showRuntime.value = false
           await engine.restart()
+        } else {
+          autoInstallAssets.value = false
+          runtimeError.value = state.error || '离线资产安装失败'
+          showRuntime.value = true
         }
       }
     }, 2000)
-  } catch {
+  } catch (err) {
     packBusy.value = false
+    runtimeError.value = err instanceof Error ? err.message : String(err)
+    showRuntime.value = true
   }
 }
 
@@ -102,7 +113,7 @@ watch(
       return
     }
     if (status !== 'ready' || !engine.client) return
-    showRuntime.value = false
+    if (!autoInstallAssets.value) showRuntime.value = false
     try {
       showTerms.value = !(await engine.client.terms())
     } catch {
@@ -274,8 +285,15 @@ const statusDetail = computed(() => {
         </div>
         <progress :value="runtimeProgress" max="100" style="width:100%"></progress>
       </div>
+      <div v-if="packBusy && pack" class="job-block">
+        <div class="row space-between">
+          <span>{{ pack.message || pack.stage }}</span>
+          <strong>{{ Math.round(pack.progress * 100) }}%</strong>
+        </div>
+        <progress :value="pack.progress" max="1" style="width:100%"></progress>
+      </div>
       <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
-      <button v-if="!runtimeChecking" class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
+      <button v-if="!runtimeChecking && !packBusy && !autoInstallAssets" class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
         {{ runtimeBusy ? '下载安装中…' : '一键安装运行时与离线资产' }}
       </button>
     </div>
