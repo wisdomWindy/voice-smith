@@ -180,16 +180,19 @@ python -m pip download --dest .cache\wheels-torch `
 
 ## 安装流程
 
-1. 首启检测 `runtime\python.exe` + `runtime\sidecar\app.py`，缺失则弹出安装。
-2. 下载 `runtime-bundle.json`，读取 base/core/torch 组件 manifest。
+1. 首启只弹一个「首次设置」弹窗：列出运行时、离线资产包（模型与工具）与使用规约，
+   用户确认一次后按顺序自动安装，不再分步弹窗。
+2. 检测 `runtime\python.exe` + `runtime\sidecar\app.py`，缺失则下载
+   `runtime-bundle.json`，读取 base/core/torch 组件 manifest。
 3. 逐组件下载分卷、校验大小、拼接、校验 sha256。
 4. 解压 base：`python/*` 展平到 `runtime/`，`sidecar/` 保持为 `runtime/sidecar/`。
 5. 解压 core/torch 到 `runtime/deps/{core,torch}/`。
 6. 运行 `runtime\python.exe sidecar\bootstrap.py`，用 `pip install --no-index` 安装
    两个 wheel 目录；日志写入 `data/logs/bootstrap.log`。
 7. 运行 `runtime\python.exe sidecar\app.py`，等待端口就绪后返回。
-8. UI 触发离线权重资产安装：下载 → sha256 → 7zr 解压 → 写入 `data/assets` →
-   创建引擎挂载 → 重启 sidecar。
+8. 同一个弹窗继续触发离线权重资产安装：下载 → sha256 → 7zr 解压 → 写入
+   `data/assets` → 创建引擎挂载 → 重启 sidecar。使用规约在首次安装时一并记录，
+   失败后重试会从断点继续。
 
 进度通过 `runtime-progress` 事件上报；下载进度按组件总大小加权。
 

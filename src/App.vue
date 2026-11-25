@@ -1,173 +1,96 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useEngineStore } from './stores/engine'
-import type { AssetPackStatus } from './lib/engine'
-import { platformTag } from './lib/engine'
-import { APP_VERSION, assetsManifest, runtimeManifest } from './lib/release'
+import { isTauri, platformTag } from './lib/engine'
+import { APP_VERSION } from './lib/release'
+import SetupDialog from './components/SetupDialog.vue'
 
 const engine = useEngineStore()
 const platform = ref('windows-x64')
-const showTerms = ref(false)
-const accepting = ref(false)
-const showAssets = ref(false)
-const pack = ref<AssetPackStatus | null>(null)
-const packBusy = ref(false)
-let packTimer: number | undefined
-const showRuntime = ref(true)
+const booted = ref(false)
+const setupOpen = ref(false)
+const setupPending = ref(true)
+const setupChecked = ref(false)
+const runtimeInstalled = ref(false)
 const showDonate = ref(false)
 const donateTab = ref<'alipay' | 'wechat'>('alipay')
-const runtimeChecking = ref(true)
-const runtimeBusy = ref(false)
-const runtimeError = ref('')
-const runtimeProgress = ref(0)
-const runtimeStage = ref('')
-const autoInstallAssets = ref(false)
-let runtimeUnlisten: (() => void) | undefined
 
-async function installRuntimePack() {
-  runtimeBusy.value = true
-  runtimeError.value = ''
-  runtimeProgress.value = 0
-  runtimeStage.value = '准备下载'
-  try {
-    const ok = await engine.installRuntimePack(runtimeManifest(platform.value))
-    if (ok) {
-      runtimeProgress.value = 100
-      runtimeStage.value = '安装完成'
-      runtimeChecking.value = false
-      showRuntime.value = true
-      runtimeStage.value = '运行时完成，正在安装离线资产'
-      autoInstallAssets.value = true
-    } else {
-      runtimeError.value = engine.error || '运行时安装失败'
-    }
-  } finally {
-    runtimeBusy.value = false
-  }
-}
+const shellVisible = computed(() => booted.value && (!setupOpen.value || runtimeInstalled.value))
 
-async function checkAssets() {
-  if (!engine.client || engine.status !== 'ready') return
+async function checkSetup() {
   try {
-    const report = await engine.client.assets()
-    const state = await engine.client.assetPack()
-    pack.value = state
-    const missing = !report.ready && !state.installed
-    showAssets.value = missing && !autoInstallAssets.value
-    if (missing && autoInstallAssets.value) {
-      autoInstallAssets.value = false
-      showRuntime.value = true
-      void startPack()
+    if (!engine.client || engine.status !== 'ready') {
+      setupPending.value = true
+      setupOpen.value = true
+      return
     }
+    const [termsOk, report, pack] = await Promise.all([
+      engine.client.terms(),
+      engine.client.assets(),
+      engine.client.assetPack(),
+    ])
+    setupPending.value = !(termsOk && (report.ready || pack.installed))
+    setupOpen.value = setupPending.value
   } catch {
-    showAssets.value = false
+    setupPending.value = true
+    setupOpen.value = true
+  } finally {
+    setupChecked.value = true
   }
 }
 
-async function startPack() {
-  if (!engine.client) return
-  packBusy.value = true
-  runtimeError.value = ''
-  try {
-    autoInstallAssets.value = false
-    pack.value = await engine.client.installAssetPack(assetsManifest(platform.value))
-    window.clearInterval(packTimer)
-    packTimer = window.setInterval(async () => {
-      if (!engine.client) return
-      const state = await engine.client.assetPack()
-      pack.value = state
-      if (!state.installing) {
-        window.clearInterval(packTimer)
-        packBusy.value = false
-        if (state.installed) {
-          showAssets.value = false
-          showRuntime.value = false
-          await engine.restart()
-        } else {
-          autoInstallAssets.value = false
-          runtimeError.value = state.error || '离线资产安装失败'
-          showRuntime.value = true
-        }
-      }
-    }, 2000)
-  } catch (err) {
-    packBusy.value = false
-    runtimeError.value = err instanceof Error ? err.message : String(err)
-    showRuntime.value = true
-  }
+function openSetup() {
+  setupOpen.value = true
+}
+
+function onSetupDone() {
+  setupOpen.value = false
+  setupPending.value = false
+  setupChecked.value = true
+  runtimeInstalled.value = true
+}
+
+function onSetupClose() {
+  setupOpen.value = false
 }
 
 watch(
   () => engine.status,
-  async (status) => {
+  (status) => {
     if (status === 'runtime_missing') {
-      showRuntime.value = true
-      runtimeChecking.value = false
-      showAssets.value = false
-      return
+      runtimeInstalled.value = false
+      setupPending.value = true
+      setupOpen.value = true
     }
-    if (status === 'error' && !engine.info) {
-      showRuntime.value = true
-      runtimeChecking.value = false
-      return
-    }
-    if (status !== 'ready' || !engine.client) return
-    if (!autoInstallAssets.value) showRuntime.value = false
-    try {
-      showTerms.value = !(await engine.client.terms())
-    } catch {
-      showTerms.value = false
-    }
-    if (!showTerms.value) await checkAssets()
   },
-  { immediate: true },
 )
 
-onUnmounted(() => window.clearInterval(packTimer))
-onUnmounted(() => runtimeUnlisten?.())
-
-async function acceptTerms() {
-  if (!engine.client) return
-  accepting.value = true
-  try {
-    await engine.client.acceptTerms()
-    showTerms.value = false
-    await checkAssets()
-  } finally {
-    accepting.value = false
-  }
-}
-
 onMounted(async () => {
-  try {
-    const { listen } = await import('@tauri-apps/api/event')
-    runtimeUnlisten = await listen<{ percent: number; stage: string }>('runtime-progress', (event) => {
-      runtimeProgress.value = Math.max(0, Math.min(100, event.payload.percent))
-      runtimeStage.value = event.payload.stage
-    })
-  } catch {
-    // Browser preview has no Tauri event bridge.
-  }
   try {
     platform.value = await platformTag()
   } catch {
     platform.value = 'windows-x64'
   }
   try {
-    const state = await engine.runtime()
-    runtimeChecking.value = false
-    if (!state.installed) {
-      showRuntime.value = true
-      return
-    }
-    showRuntime.value = false
+    runtimeInstalled.value = (await engine.runtime()).installed
   } catch {
-    runtimeChecking.value = false
-    showRuntime.value = true
+    runtimeInstalled.value = false
+  }
+  booted.value = true
+  if (!isTauri()) {
+    // Browser preview talks to a dev sidecar; there is nothing to install here.
+    setupPending.value = false
+    setupChecked.value = true
+    void engine.init()
     return
   }
-  if (engine.status === 'starting' && !engine.info) void engine.init()
+  if (!runtimeInstalled.value) {
+    setupOpen.value = true
+    return
+  }
+  await engine.init()
+  await checkSetup()
 })
 
 const statusText = computed(() => {
@@ -186,7 +109,7 @@ const statusDetail = computed(() => {
 </script>
 
 <template>
-  <div v-if="!showRuntime" class="shell">
+  <div v-if="shellVisible" class="shell">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">VS</div>
@@ -236,6 +159,11 @@ const statusDetail = computed(() => {
         </div>
       </header>
 
+      <div v-if="setupChecked && setupPending && !setupOpen" class="notice">
+        <span><strong>首次设置未完成：</strong>离线资产（模型权重）或使用规约还未确认，推理与训练暂不可用。</span>
+        <button class="button ghost small" @click="openSetup">继续安装</button>
+      </div>
+
       <div v-if="engine.error" class="banner">
         <strong>引擎未就绪：</strong>{{ engine.error }}
         <button class="button ghost small" @click="engine.restart()">重试</button>
@@ -271,73 +199,5 @@ const statusDetail = computed(() => {
     </div>
   </div>
 
-  <div v-if="showRuntime" class="modal-mask">
-    <div class="modal">
-      <h2>安装运行时</h2>
-      <p class="muted">
-        首次使用需要下载 VoiceSmith 运行时与离线资产（Python + PyTorch/CUDA + 模型权重）。只需确认一次，后续步骤自动完成。
-      </p>
-      <p v-if="runtimeChecking" class="muted">Checking runtime...</p>
-      <div v-if="runtimeBusy" class="job-block">
-        <div class="row space-between">
-          <span>{{ runtimeStage || '下载安装中…' }}</span>
-          <strong>{{ runtimeProgress }}%</strong>
-        </div>
-        <progress :value="runtimeProgress" max="100" style="width:100%"></progress>
-      </div>
-      <div v-if="packBusy && pack" class="job-block">
-        <div class="row space-between">
-          <span>{{ pack.message || pack.stage }}</span>
-          <strong>{{ Math.round(pack.progress * 100) }}%</strong>
-        </div>
-        <progress :value="pack.progress" max="1" style="width:100%"></progress>
-      </div>
-      <div v-if="runtimeError" class="inline-error">{{ runtimeError }}</div>
-      <button v-if="!runtimeChecking && !packBusy && !autoInstallAssets" class="button primary" :disabled="runtimeBusy" @click="installRuntimePack">
-        {{ runtimeBusy ? '下载安装中…' : '一键安装运行时与离线资产' }}
-      </button>
-    </div>
-  </div>
-
-  <div v-if="showTerms" class="modal-mask">
-    <div class="modal">
-      <h2>使用规约</h2>
-      <p class="muted">
-        VoiceSmith 是本地 TTS 工具。你对生成的音频用途负责；禁止伪造他人声音、诈骗、侵权或违法用途。
-      </p>
-      <ul class="muted small">
-        <li>音频、模型、日志只保存在本机，数据不出机。</li>
-        <li>模型权重与训练数据由你自行提供，需确保授权合法。</li>
-        <li>本软件不提供内容审核或授权审核。</li>
-      </ul>
-      <button class="button primary" :disabled="accepting" @click="acceptTerms">
-        {{ accepting ? '保存中…' : '同意并继续' }}
-      </button>
-    </div>
-  </div>
-
-  <div v-if="showAssets && !showTerms" class="modal-mask">
-    <div class="modal">
-      <h2>安装离线资产</h2>
-      <p class="muted">
-        首次使用需要 GPT-SoVITS 引擎、编码器、声码器与预训练权重。下载离线资产包后会自动校验 sha256 并安装。
-      </p>
-      <p class="muted small">下载地址固定，无需填写。</p>
-      <div v-if="pack && pack.installing" class="job-block">
-        <div class="row space-between">
-          <span>{{ pack.message || pack.stage }}</span>
-          <strong>{{ Math.round(pack.progress * 100) }}%</strong>
-        </div>
-        <progress :value="pack.progress" max="1" style="width:100%"></progress>
-      </div>
-      <div v-if="pack?.error" class="inline-error">{{ pack.error }}</div>
-      <div class="row gap">
-        <button class="button primary" :disabled="packBusy" @click="startPack">
-          {{ packBusy ? (pack?.installing ? '安装中…' : '启动中…') : '下载并安装离线资产' }}
-        </button>
-        <button class="button ghost" :disabled="packBusy" @click="showAssets = false">稍后</button>
-      </div>
-    </div>
-  </div>
+  <SetupDialog :open="setupOpen" :platform="platform" @done="onSetupDone" @close="onSetupClose" />
 </template>
-

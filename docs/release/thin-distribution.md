@@ -17,14 +17,15 @@ independently.
 
 First launch:
 
-1. `runtime_missing` -> **安装运行时** dialog.
+1. `runtime_missing` -> one **首次设置** dialog that lists runtime, offline asset
+   pack and usage terms; a single confirmation installs them in order.
 2. Fetch `runtime-bundle.json`, then each component manifest.
 3. Download parts, verify part sizes and the assembled archive sha256.
 4. Extract base into `runtime` (flattening `python/`), core/torch into
    `runtime/deps/{core,torch}`.
 5. Run `runtime\python.exe sidecar\bootstrap.py` to install the offline wheels.
-6. Start `runtime\python.exe sidecar\app.py`; the assets dialog then downloads the
-   weights pack into `<data>/assets` and mounts it into
+6. Start `runtime\python.exe sidecar\app.py`; the same dialog then continues with
+   the weights pack into `<data>/assets` and mounts it into
    `resources\upstream\GPT-SoVITS` (engine source stays untouched).
 
 The Rust installer accepts both the new bundle and the legacy single-pack

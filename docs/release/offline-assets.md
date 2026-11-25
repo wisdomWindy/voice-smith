@@ -47,14 +47,15 @@ scripts\split-release-assets.ps1 -Version 0.3.0
 把 `assets.partNN` 与 `assets-<platform>-manifest.json` 上传到 Release（`release-packs.yml`
 在带权重的 self-hosted runner 上完成），或放到任意 HTTPS 静态站点。然后：
 
-- 首启「安装离线资产」对话框使用 `src/lib/release.ts` 里的 manifest URL；
+- 首启「首次设置」弹窗使用 `src/lib/release.ts` 里的 manifest URL；
 - 或设置 `VOICE_SMITH_ASSETS_URL=<manifest-or-7z-url>`；
 - 或设置 `VOICE_SMITH_ASSETS_SHA256=<sha256>` 强制校验。
 
 ## Install flow
 
 1. Thin installer：`VoiceSmith-<version>-Setup.exe`（含引擎源码，见 `thin-distribution.md`）。
-2. 首启完成运行时安装 → 使用规约 → **安装离线资产** 对话框。
+2. 首启只弹一个「首次设置」弹窗（运行时 + 离线资产包 + 使用规约），确认一次后自动按顺序
+   安装；运行时装完后同一个弹窗继续下载离线资产，不再分步确认。
 3. Sidecar 下载 manifest/分卷到 `<data>/asset-pack.7z`，校验 sha256，用 `7zr.exe` 解压。
 4. 按布局导入：`gpt-sovits/` → `<data>/assets/gpt-sovits`，`bin/` → `<data>/assets/bin`；
    旧包（`engine/GPT-SoVITS/`）只导入权重目录与 `runtime/ffmpeg*.exe`。
