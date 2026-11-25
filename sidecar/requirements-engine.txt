@@ -11,3 +11,4 @@ rotary-embedding-torch==0.6.2; platform_machine == "x86_64" and platform_system 
 einx==0.4.3
 torch-complex==0.4.4
 pytorch-wpe==0.0.1
+setuptools==68.2.2
