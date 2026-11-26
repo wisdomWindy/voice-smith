@@ -80,9 +80,13 @@ def analyze_dataset(list_path: Path) -> dict[str, Any]:
                 if clipping >= 0.001:
                     item["issues"].append("clipping >=0.1%")
                     blocking.append(f"line {line_no}: clipping")
-                if silence > 0.2:
-                    item["issues"].append("silence >20%")
+                # Natural speech pauses routinely dip below -60 dBFS; only treat
+                # an effectively silent file as blocking, otherwise just warn.
+                if peak < 0.01:
+                    item["issues"].append("silent audio")
                     blocking.append(f"line {line_no}: silence")
+                elif silence > 0.5:
+                    item["issues"].append("mostly silence (>50%)")
         except Exception as exc:  # noqa: BLE001
             item["issues"].append(f"unreadable: {exc}")
             errors.append(f"line {line_no}: {exc}")

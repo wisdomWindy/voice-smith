@@ -101,7 +101,27 @@ def _log_has_oom(log_path: Path) -> bool:
         text = log_path.read_text(encoding="utf-8", errors="replace")[-8000:].lower()
     except Exception:
         return False
-    return "out of memory" in text or "outofmemoryerror" in text or "cuda error: out of memory" in text()
+    return "out of memory" in text or "outofmemoryerror" in text or "cuda error: out of memory" in text
+
+
+# The packaged runtime uses an embedded CPython whose ``._pth`` file disables
+# PYTHONPATH. Engine scripts still import ``text.cleaner`` / ``tools.*`` from the
+# GPT_SoVITS tree, so inject those directories before running the script.
+# ``tools/my_utils.py`` also imports gradio for UI warnings that the headless
+# stages never call, so a no-op module stands in when gradio is absent.
+_ENGINE_PATH_BOOTSTRAP = (
+    "import importlib.util, os, runpy, sys, types\n"
+    "root = sys.argv[1]\n"
+    "target = sys.argv[2]\n"
+    "sys.path[:0] = [p for p in (os.path.join(root, 'GPT_SoVITS'), root) if p and p not in sys.path]\n"
+    "if importlib.util.find_spec('gradio') is None:\n"
+    "    stub = types.ModuleType('gradio')\n"
+    "    stub.__file__ = '<gradio-stub>'\n"
+    "    stub.__getattr__ = lambda name: (lambda *a, **k: None)\n"
+    "    sys.modules['gradio'] = stub\n"
+    "sys.argv = [target] + sys.argv[3:]\n"
+    "runpy.run_path(target, run_name='__main__')\n"
+)
 
 
 def _python_command(script: Path, engine: Path) -> list[str]:
@@ -109,8 +129,8 @@ def _python_command(script: Path, engine: Path) -> list[str]:
         return [sys.executable, "--run-script", str(script), "--engine", str(engine)]
     if script.name.startswith("s2_train_v3"):
         wrapper = Path(__file__).resolve().parent / "v5_train.py"
-        return [sys.executable, str(wrapper), str(script)]
-    return [sys.executable, str(script)]
+        return [sys.executable, "-c", _ENGINE_PATH_BOOTSTRAP, str(engine), str(wrapper), str(script)]
+    return [sys.executable, "-c", _ENGINE_PATH_BOOTSTRAP, str(engine), str(script)]
 
 
 def _run(

@@ -12,3 +12,5 @@ einx==0.4.3
 torch-complex==0.4.4
 pytorch-wpe==0.0.1
 setuptools==68.2.2
+# Upstream tools/my_utils.py reads semantic files with pandas during training.
+pandas==2.2.3

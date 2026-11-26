@@ -187,3 +187,6 @@ src-tauri/resources/upstream/GPT-SoVITS/
 
 # Local build caches
 .cache/
+
+# Project-local Python 3.11 interpreter (independent of any system Python)
+sidecar/.python311/
