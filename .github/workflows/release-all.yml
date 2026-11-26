@@ -57,12 +57,33 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - uses: dtolnay/rust-toolchain@stable
       - run: pnpm install --frozen-lockfile
+      - name: Prepare macOS DMG bundling
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Spotlight and stale mounts make Tauri's bundle_dmg.sh fail with
+          # `hdiutil: couldn't eject "diskX" - Resource busy`.
+          sudo mdutil -a -i off || true
+          for v in /Volumes/VoiceSmith*; do
+            [ -e "$v" ] && hdiutil detach "$v" -force || true
+          done
       - name: Build
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --bundles ${{ matrix.bundle }}
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm tauri build --bundles ${{ matrix.bundle }}; then
+              exit 0
+            fi
+            echo "::warning::installer build attempt $attempt failed; detaching stale DMG mounts and retrying"
+            for v in /Volumes/VoiceSmith*; do
+              [ -e "$v" ] && hdiutil detach "$v" -force || true
+            done
+            sleep 15
+          done
+          exit 1
       - name: Upload
         shell: bash
         env:
