@@ -168,6 +168,9 @@ scripts\publish-release.ps1 -Version 0.1.0
 `bootstrap.py` 安装 wheel → 启动 sidecar → 同意使用规约 → 安装权重资产包（解压到
 `<data>/assets` 并挂载）→ 自动重启 sidecar。
 
+更新安装包时会**先删除旧的 `runtime/` 与 `upstream/` 环境文件再安装**，避免复用旧 sidecar
+代码；`data/`、`projects/` 等用户数据保留。更新后首次启动会按新版本重新安装运行时。
+
 ## 目录
 
 ```text
