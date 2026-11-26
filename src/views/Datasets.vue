@@ -122,19 +122,21 @@ function confirmDelete() {
           批量删除（{{ checked.length }}）
         </button>
       </div>
-      <table class="table">
-        <thead><tr><th class="check-col"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th><th>名称</th><th>状态</th><th>原始音频</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr v-for="item in visibleDatasets" :key="item.id">
-            <td class="check-col"><input type="checkbox" :checked="checked.includes(item.id)" @change="toggle(item.id)" /></td>
-            <td>{{ item.name }}</td>
-            <td>{{ item.status === 'raw' ? '待预处理' : '已预处理' }}</td>
-            <td class="ellipsis">{{ item.rawAudios.length }} 个音频 · {{ item.rawAudios[0] }}</td>
-            <td><button class="button ghost small" @click="askDelete([item.id])">删除</button></td>
-          </tr>
-          <tr v-if="!visibleDatasets.length"><td colspan="5" class="muted">还没有数据集。</td></tr>
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th class="check-col"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th><th>名称</th><th>状态</th><th>原始音频</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="item in visibleDatasets" :key="item.id">
+              <td class="check-col"><input type="checkbox" :checked="checked.includes(item.id)" @change="toggle(item.id)" /></td>
+              <td>{{ item.name }}</td>
+              <td>{{ item.status === 'raw' ? '待预处理' : '已预处理' }}</td>
+              <td class="ellipsis">{{ item.rawAudios.length }} 个音频 · {{ item.rawAudios[0] }}</td>
+              <td><button class="button ghost small" @click="askDelete([item.id])">删除</button></td>
+            </tr>
+            <tr v-if="!visibleDatasets.length"><td colspan="5" class="muted">还没有数据集。</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     <ConfirmDialog
       :open="Boolean(deleteIds)"
@@ -155,6 +157,8 @@ function confirmDelete() {
   padding: 0;
   display: grid;
   gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
 }
 .pending-files li {
   display: flex;
