@@ -88,7 +88,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(8, 10, 13, 0.78);
+  background: rgba(4, 7, 12, 0.72);
   backdrop-filter: blur(3px);
 }
 .confirm-dialog {
@@ -113,7 +113,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line);
 }
 .confirm-icon.danger {
-  color: #f0a5a5;
+  color: #ff9d9d;
   background: rgba(223, 91, 91, 0.12);
   border-color: rgba(223, 91, 91, 0.4);
 }

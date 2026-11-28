@@ -84,7 +84,7 @@ function submit() {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(8, 10, 13, 0.78);
+  background: rgba(4, 7, 12, 0.72);
   backdrop-filter: blur(3px);
 }
 .project-dialog {
@@ -147,8 +147,8 @@ function submit() {
   outline: none;
 }
 .project-field input:focus {
-  border-color: rgba(214, 106, 58, 0.7);
-  box-shadow: 0 0 0 3px rgba(214, 106, 58, 0.14);
+  border-color: #6f8fff;
+  box-shadow: 0 0 0 3px rgba(111, 143, 255, 0.13);
 }
 .project-error {
   margin: 0;
@@ -156,7 +156,7 @@ function submit() {
   border-radius: 8px;
   border: 1px solid rgba(223, 91, 91, 0.4);
   background: rgba(223, 91, 91, 0.08);
-  color: #f0b6b6;
+  color: #ffb3b3;
   font-size: 12px;
 }
 .project-actions {
