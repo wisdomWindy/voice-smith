@@ -103,19 +103,40 @@ onUnmounted(() => {
           <option value="">请选择</option>
           <option v-for="item in readyDatasets" :key="item.id" :value="item.id">{{ item.name }}</option>
         </select>
+        <small class="field-hint">需要先在「预处理」页完成文本、HuBERT、说话人向量与语义提取。</small>
       </label>
       <p v-if="!readyDatasets.length" class="muted small">还没有预处理完成的数据集，请先到「预处理」页面执行。</p>
       <div class="form-grid">
-        <label class="field"><span>实验名</span><input v-model="expName" class="input" /></label>
-        <label class="field"><span>S1 epochs</span><input v-model.number="s1Epochs" class="input" type="number" min="1" max="50" /></label>
-        <label class="field"><span>S2 epochs</span><input v-model.number="s2Epochs" class="input" type="number" min="1" max="50" /></label>
-        <label class="field"><span>batch</span><input v-model.number="batchSize" class="input" type="number" min="1" max="8" /></label>
+        <label class="field">
+          <span>实验名</span>
+          <input v-model="expName" class="input" />
+          <small class="field-hint">模型与实验目录的名称，用于在「模型库」里区分。</small>
+        </label>
+        <label class="field">
+          <span>S1 epochs</span>
+          <input v-model.number="s1Epochs" class="input" type="number" min="1" max="50" />
+          <small class="field-hint">GPT 阶段训练轮数（默认 5）。1 轮 = 遍历一遍数据集；越大越拟合，但更慢、更易过拟合。</small>
+        </label>
+        <label class="field">
+          <span>S2 epochs</span>
+          <input v-model.number="s2Epochs" class="input" type="number" min="1" max="50" />
+          <small class="field-hint">SoVITS 阶段训练轮数（默认 2）。决定音色细节，常用 2–10；耗时比 S1 更长。</small>
+        </label>
+        <label class="field">
+          <span>batch</span>
+          <input v-model.number="batchSize" class="input" type="number" min="1" max="8" />
+          <small class="field-hint">每步送入的切片数。显存 6GB 建议 1–2，12GB 可 2–4；显存不足会自动减半重试。</small>
+        </label>
         <label class="field" style="grid-column: span 2">
           <span>DataLoader 进程数：{{ dataWorkers }}</span>
           <input v-model.number="dataWorkers" type="range" min="1" max="8" step="1" :disabled="!!busy" style="width:100%" />
-          <small class="muted">{{ busy ? '任务进行中不可修改；下次启动任务时生效。' : '任务执行前设置，启动训练时生效。' }}</small>
+          <small class="field-hint">{{ busy ? '任务进行中不可修改；下次启动任务时生效。' : '并行加载数据的进程数，CPU 核数多可调 2–4；过大反而占用内存。' }}</small>
         </label>
-        <label class="check"><input v-model="force" type="checkbox" /><span>不足 1 分钟也强制训练</span></label>
+        <label class="check" style="grid-column: span 3">
+          <input v-model="force" type="checkbox" />
+          <span>不足 1 分钟也强制训练</span>
+          <small class="field-hint">跳过“数据总时长 ≥ 60 秒”的检查，仅建议用于流程测试。</small>
+        </label>
       </div>
       <div class="row gap" style="margin-top:14px">
         <button class="button primary" :disabled="!canStart" @click="start">{{ starting ? '启动中…' : '开始训练' }}</button>
