@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useEngineStore } from '../stores/engine'
-import { isTauri, type Job, type Training } from '../lib/engine'
+import { isTauri, type Job, type TaskInfo, type Training } from '../lib/engine'
 import { datasets } from '../lib/datasets'
+import { taskDetail, taskLabel, taskPercent, taskStatusLabel, taskStatusTone } from '../lib/taskView'
 
 const engine = useEngineStore()
 const trainings = ref<Training[]>([])
 const jobs = ref<Job[]>([])
+const tasks = ref<TaskInfo[]>([])
 const error = ref('')
 let timer: number | undefined
 
@@ -15,6 +17,7 @@ async function load() {
   try {
     trainings.value = await engine.client.trainings()
     jobs.value = await engine.client.jobs()
+    tasks.value = await engine.client.tasks(20)
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   }
@@ -69,6 +72,12 @@ function isActive(status: string) {
   return ['queued', 'running', 'cancelling'].includes(status)
 }
 
+async function cancelTask(item: TaskInfo) {
+  if (!engine.client) return
+  await engine.client.cancelTask(item.id)
+  await load()
+}
+
 onMounted(() => {
   void load()
   timer = window.setInterval(() => void load(), 3000)
@@ -94,6 +103,30 @@ onUnmounted(() => {
               <td class="ellipsis">{{ item.listPath || '—' }}</td>
             </tr>
             <tr v-if="!datasets.length"><td colspan="3" class="muted">还没有数据集。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div>
+          <h2>后台任务</h2>
+          <p class="muted small">预处理等长任务按顺序排队执行，切换页面不会中断。</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>任务</th><th>状态</th><th>进度</th><th>详情</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="item in tasks" :key="item.id">
+              <td class="ellipsis">{{ taskLabel(item) }}</td>
+              <td><span class="tag" :class="taskStatusTone(item.status)">{{ taskStatusLabel(item.status) }}</span></td>
+              <td>{{ taskPercent(item.progress) }}%</td>
+              <td class="ellipsis">{{ taskDetail(item) }}</td>
+              <td><button v-if="isActive(item.status)" class="button ghost small" @click="cancelTask(item)">取消</button></td>
+            </tr>
+            <tr v-if="!tasks.length"><td colspan="5" class="muted">还没有后台任务。</td></tr>
           </tbody>
         </table>
       </div>

@@ -49,7 +49,7 @@ export const router = createRouter({
       path: '/tasks',
       name: 'tasks',
       component: Tasks,
-      meta: { title: '任务', desc: '预处理、训练、推理的统一队列，关闭窗口也不会中断。' },
+      meta: { title: '任务', desc: '预处理、训练、推理统一在这里排队，切换页面不会中断。' },
     },
     {
       path: '/voices',

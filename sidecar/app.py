@@ -27,7 +27,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +42,7 @@ import asr as asr_engine
 import dataset as dataset_qc
 import engine_paths
 import slice as slice_engine
+import tasks as task_queue
 import training as training_runner
 import uvr5 as uvr5_engine
 from real_engine import RealEngine
@@ -156,6 +157,21 @@ def init_db() -> None:
               ref_text TEXT NOT NULL,
               created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tasks (
+              id TEXT PRIMARY KEY,
+              kind TEXT NOT NULL,
+              title TEXT NOT NULL,
+              status TEXT NOT NULL,
+              stage TEXT NOT NULL DEFAULT '',
+              progress REAL NOT NULL DEFAULT 0,
+              detail TEXT NOT NULL DEFAULT '',
+              payload_json TEXT NOT NULL DEFAULT '{}',
+              result_json TEXT NOT NULL DEFAULT '{}',
+              created_at TEXT NOT NULL,
+              started_at TEXT,
+              finished_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC);
             """
         )
         existing = {row[1] for row in conn.execute("PRAGMA table_info(voices)").fetchall()}
@@ -972,22 +988,30 @@ def dataset_slice(req: SliceRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"slice failed: {exc}") from exc
 
 
-@app.post("/api/v1/datasets/preprocess", dependencies=[Depends(require_token)])
-def dataset_preprocess(req: DatasetPreprocessRequest) -> dict[str, Any]:
+def _preprocess_audio(
+    audio_paths: list[str],
+    language: str,
+    speaker: str,
+    min_sec: float,
+    report: Callable[..., None],
+) -> dict[str, Any]:
     combined = DATA_DIR / "datasets" / "slices" / f"slice_{uuid.uuid4().hex[:10]}"
     combined.mkdir(parents=True, exist_ok=True)
     skipped: list[str] = []
-    for index, raw in enumerate(req.audio_paths):
+    total = max(1, len(audio_paths))
+    for index, raw in enumerate(audio_paths):
+        report(stage=f"人声分离 {index + 1}/{total}", progress=round(min(0.6, (index / total) * 0.6), 3))
         source = Path(raw).expanduser().resolve()
         if not source.exists():
             skipped.append(f"{source.name}: not found")
             continue
         try:
             vocal = uvr5_engine.separate(source)
+            report(stage=f"切片 {index + 1}/{total}", progress=round(min(0.7, (index / total) * 0.6 + 0.1), 3))
             sliced = slice_engine.slice_audio(
                 Path(vocal["vocal_path"]),
                 combined.parent,
-                req.min_sec,
+                min_sec,
                 15.0,
             )
             for item in sliced["items"]:
@@ -996,15 +1020,67 @@ def dataset_preprocess(req: DatasetPreprocessRequest) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             skipped.append(f"{source.name}: {exc}")
     if not any(combined.iterdir()):
-        raise HTTPException(
-            status_code=400,
-            detail="no usable vocals: " + "; ".join(skipped[:5]),
-        )
-    try:
-        result = asr_engine.transcribe_folder(combined, req.language, req.speaker)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"ASR failed: {exc}") from exc
+        raise RuntimeError("no usable vocals: " + "; ".join(skipped[:5]))
+    report(stage="ASR 转写", progress=0.8)
+    result = asr_engine.transcribe_folder(combined, language, speaker)
+    report(stage="完成", progress=1.0)
     return {**result, "slices_dir": str(combined), "skipped": skipped}
+
+
+@app.post("/api/v1/datasets/preprocess", dependencies=[Depends(require_token)])
+def dataset_preprocess(req: DatasetPreprocessRequest) -> dict[str, Any]:
+    """Blocking variant kept for scripts; the UI submits a background task."""
+    return _preprocess_audio(req.audio_paths, req.language, req.speaker, req.min_sec, lambda **_: None)
+
+
+class TaskCreateRequest(BaseModel):
+    kind: str
+    title: str = ""
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+def preprocess_task(task_id: str, payload: dict[str, Any], report: Callable[..., None]) -> dict[str, Any]:
+    audio_paths = [str(item) for item in (payload.get("audio_paths") or [])]
+    if not audio_paths:
+        raise ValueError("audio_paths is empty")
+    return _preprocess_audio(
+        audio_paths,
+        str(payload.get("language") or "zh"),
+        str(payload.get("speaker") or "speaker"),
+        float(payload.get("min_sec") or 5.0),
+        report,
+    )
+
+
+@app.post("/api/v1/tasks", status_code=202, dependencies=[Depends(require_token)])
+def task_create(req: TaskCreateRequest) -> dict[str, Any]:
+    if req.kind == "preprocess" and not (req.payload.get("audio_paths") or []):
+        raise HTTPException(status_code=400, detail="audio_paths is empty")
+    try:
+        return task_queue.create(req.kind, req.title, req.payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/tasks", dependencies=[Depends(require_token)])
+def task_list(limit: int = Query(default=50, ge=1, le=200), kind: str = "") -> dict[str, Any]:
+    return {"items": task_queue.list_tasks(limit, kind)}
+
+
+@app.get("/api/v1/tasks/{task_id}", dependencies=[Depends(require_token)])
+def task_get(task_id: str) -> dict[str, Any]:
+    row = task_queue.get(task_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="task not found")
+    return row
+
+
+@app.post("/api/v1/tasks/{task_id}/cancel", dependencies=[Depends(require_token)])
+def task_cancel(task_id: str) -> dict[str, Any]:
+    try:
+        return task_queue.cancel(task_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="task not found") from exc
 
 
 @app.post("/api/v1/trainings", status_code=202, dependencies=[Depends(require_token)])
@@ -1418,6 +1494,7 @@ async def events(
 def shutdown() -> dict[str, Any]:
     STOP_EVENT.set()
     training_runner.cancel_all()
+    task_queue.shutdown()
     engine = REAL_ENGINE
     if engine is not None:
         engine.stop()
@@ -1447,6 +1524,7 @@ def main() -> None:
     asr_engine.configure(DATA_DIR, engine_root)
     uvr5_engine.configure(DATA_DIR, engine_root)
     asset_install.configure(DATA_DIR, engine_root)
+    task_queue.configure(DB_PATH, {"preprocess": preprocess_task})
 
     print(f"VoiceSmith engine ready on http://127.0.0.1:{args.port}", flush=True)
     print(f"engine source: {engine_root}", flush=True)

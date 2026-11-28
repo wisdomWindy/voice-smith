@@ -39,6 +39,21 @@ export type AssetStatus = {
   hash_ok?: boolean | null
 }
 
+export type TaskInfo = {
+  id: string
+  kind: string
+  title: string
+  status: 'queued' | 'running' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled'
+  stage: string
+  progress: number
+  detail: string
+  payload?: Record<string, unknown>
+  result?: Record<string, unknown>
+  created_at: string
+  started_at?: string | null
+  finished_at?: string | null
+}
+
 export type AssetMount = {
   path: string
   target: string
@@ -420,6 +435,27 @@ export class EngineClient {
       body: JSON.stringify({ url, sha256 }),
     })
     return (await response.json()) as AssetPackStatus
+  }
+
+  async tasks(limit = 50, kind = ''): Promise<TaskInfo[]> {
+    const query = new URLSearchParams({ limit: String(limit) })
+    if (kind) query.set('kind', kind)
+    const response = await this.request(`/api/v1/tasks?${query.toString()}`)
+    const data = (await response.json()) as { items: TaskInfo[] }
+    return data.items
+  }
+
+  async createTask(kind: string, title: string, payload: Record<string, unknown>): Promise<TaskInfo> {
+    const response = await this.request('/api/v1/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ kind, title, payload }),
+    })
+    return (await response.json()) as TaskInfo
+  }
+
+  async cancelTask(taskId: string): Promise<TaskInfo> {
+    const response = await this.request(`/api/v1/tasks/${taskId}/cancel`, { method: 'POST' })
+    return (await response.json()) as TaskInfo
   }
 
   async verifyAssets(): Promise<AssetReport> {

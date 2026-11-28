@@ -6,6 +6,7 @@ import { isTauri, platformTag } from './lib/engine'
 import { APP_VERSION } from './lib/release'
 import SetupDialog from './components/SetupDialog.vue'
 import AppIcon from './components/AppIcon.vue'
+import { startTaskWatcher } from './lib/taskWatcher'
 
 const engine = useEngineStore()
 const route = useRoute()
@@ -103,6 +104,7 @@ watch(
 )
 
 onMounted(async () => {
+  startTaskWatcher()
   try {
     platform.value = await platformTag()
   } catch {

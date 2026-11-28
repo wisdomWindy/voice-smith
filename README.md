@@ -10,6 +10,7 @@ GPT-SoVITS 在本地跑推理与训练，零服务器成本，默认零遥测。
 - **M2 完成**：V5 Turbo 真实推理（48k）；持久化 worker 冷启动约 20s、热任务复用；UI 任务成功并可下载 WAV。
 - **M3 完成**：数据集 `.list` → QC → BERT/HuBERT/SV/语义 → S1/S2 训练 → 自动发布微调音色 → 真实合成；S1 225 步、S2 192 步已验证，S1 断点恢复已修复。
 - **模型资产**：7 个关键权重带 sha256；校验页可显示 `hash` 失败，导入后自动复核。
+- **后台任务**：预处理等长任务提交到 sidecar 队列按顺序执行，切换页面不会中断；任务页可查看进度与取消。
 - **离线资产包 + 运行时**：主安装器自带 **GPT-SoVITS 引擎源码**（`vendor/GPT-SoVITS`，约 49MB）；首启先下载 `runtime-bundle.json` 与 base/core/torch 三个运行时组件（嵌入式 Python + wheel），`pip` 离线安装后启动 sidecar；再下载 `VoiceSmith-Offline-Assets.7z`（权重/工具，约 5.5GB），全程 sha256 校验、7zr 解压到 `<data>/assets`。不再依赖 `v5-engine` 单体发布包。首次启动只弹一个「首次设置」弹窗，确认一次后自动串联安装运行时、离线资产包与模型权重，不再分步确认。
 - **合规与支持**：首启使用规约并入「首次设置」弹窗，随安装一次同意；设置页导出诊断包（版本/doctor/日志，不含音频/模型）。
 - **ASR**：faster-whisper small 本地转写，支持文件夹批量生成训练 `.list`。
