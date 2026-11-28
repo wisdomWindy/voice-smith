@@ -84,17 +84,17 @@ function submit() {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(4, 7, 12, 0.72);
+  background: rgba(8, 10, 13, 0.78);
   backdrop-filter: blur(3px);
 }
 .project-dialog {
   width: min(460px, 100%);
   display: grid;
-  gap: 15px;
-  padding: 22px;
-  border: 1px solid #263349;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #151c27, #10151e);
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
 .project-head {
@@ -103,60 +103,60 @@ function submit() {
   align-items: flex-start;
 }
 .project-icon {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   flex: none;
-  border-radius: 11px;
-  color: #dfe8ff;
-  font-size: 12px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 11px;
   font-weight: 700;
-  background: linear-gradient(135deg, #6f8fff, #4d6fe0);
+  background: var(--accent);
 }
 .project-head h3 {
   margin: 1px 0 5px;
-  font-size: 16px;
-  color: #eef3fb;
+  font-size: 15px;
+  color: var(--text);
 }
 .project-head p,
 .project-hint {
   margin: 0;
-  color: #8d9bb0;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
 }
 .project-head code,
 .project-hint code {
-  color: #aebfe0;
+  color: var(--text);
   font-size: 11px;
 }
 .project-field {
   display: grid;
   gap: 7px;
   font-size: 12px;
-  color: #9aa8bd;
+  color: var(--muted);
 }
 .project-field input {
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 9px;
-  border: 1px solid #2b3a52;
-  background: #0d121a;
-  color: #eef3fb;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
   outline: none;
 }
 .project-field input:focus {
-  border-color: #6f8fff;
-  box-shadow: 0 0 0 3px rgba(111, 143, 255, 0.13);
+  border-color: rgba(214, 106, 58, 0.7);
+  box-shadow: 0 0 0 3px rgba(214, 106, 58, 0.14);
 }
 .project-error {
   margin: 0;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #4b2323;
-  background: #1a1111;
-  color: #ffb3b3;
+  border: 1px solid rgba(223, 91, 91, 0.4);
+  background: rgba(223, 91, 91, 0.08);
+  color: #f0b6b6;
   font-size: 12px;
 }
 .project-actions {
@@ -166,25 +166,30 @@ function submit() {
   margin-top: 2px;
 }
 .project-button {
-  min-height: 35px;
-  padding: 0 16px;
-  border-radius: 9px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
   border: 1px solid transparent;
   font-size: 13px;
-  color: #eaf0fa;
+  font-weight: 500;
+  color: var(--text);
 }
 .project-button.ghost {
   background: transparent;
-  border-color: #2b3a52;
-  color: #aebbd0;
+  border-color: var(--line);
+  color: var(--muted);
 }
 .project-button.ghost:hover {
-  background: #1a2230;
+  background: var(--panel-2);
+  color: var(--text);
 }
 .project-button.primary {
-  background: linear-gradient(180deg, #6f8fff, #5b7df0);
-  border-color: #5b7df0;
+  background: var(--accent);
+  border-color: var(--accent);
   font-weight: 600;
+}
+.project-button.primary:hover {
+  background: var(--accent-2);
 }
 .project-button:disabled {
   opacity: 0.45;
@@ -206,5 +211,4 @@ function submit() {
 .project-dialog-leave-to .project-dialog {
   transform: translateY(6px) scale(0.98);
   opacity: 0;
-}
-</style>
+}</style>

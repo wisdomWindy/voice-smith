@@ -92,7 +92,7 @@ onUnmounted(() => {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>训练</h2>
+          <h2>训练配置</h2>
           <p class="muted small">选择预处理完成的数据集，启动 V5 微调训练。</p>
         </div>
       </div>

@@ -105,13 +105,13 @@ watch(
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>音色库</h2>
+          <h2>音色列表</h2>
           <p class="muted small">训练完成的音色会显示在这里；不再提供快速音色创建。</p>
         </div>
         <span class="tag">{{ voices.length }} 个</span>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
-      <div v-if="message" class="banner" style="border-color:#1f4b3d;background:#0f1d19;color:#b8f5df">{{ message }}</div>
+      <div v-if="message" class="banner success">{{ message }}</div>
 
       <div class="voice-grid">
         <div v-for="voice in voices" :key="voice.id" class="voice-card">

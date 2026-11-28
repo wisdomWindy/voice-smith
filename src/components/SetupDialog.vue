@@ -431,7 +431,7 @@ onBeforeUnmount(() => unlisten?.())
   padding: 10px 12px;
   border: 1px solid var(--line-soft);
   border-radius: 9px;
-  background: #0f141d;
+  background: var(--bg);
 }
 .setup-step-main {
   display: grid;
@@ -449,7 +449,7 @@ onBeforeUnmount(() => unlisten?.())
   padding: 10px 12px;
   border: 1px solid var(--line-soft);
   border-radius: 9px;
-  background: #0f141d;
+  background: var(--bg);
   display: grid;
   gap: 6px;
 }

@@ -49,12 +49,12 @@ async function run() {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>预处理</h2>
+          <h2>预处理配置</h2>
           <p class="muted small">选择数据集，自动执行 V5 预处理：人声分离、切片、ASR、训练清单。</p>
         </div>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
-      <div v-if="message" class="banner" style="border-color:#1f4b3d;background:#0f1d19;color:#b8f5df">{{ message }}</div>
+      <div v-if="message" class="banner success">{{ message }}</div>
       <label class="field">
         <span>数据集</span>
         <select v-model="selectedId" class="input">

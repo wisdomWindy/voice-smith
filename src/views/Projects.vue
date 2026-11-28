@@ -86,7 +86,7 @@ async function confirmRemove() {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>项目</h2>
+          <h2>项目工作区</h2>
           <p class="muted small">每个项目使用一个独立文件夹保存数据集、训练和推理产物。</p>
           <p class="muted small">项目固定创建在安装目录的 <code>projects</code> 文件夹中，不能更改位置。</p>
         </div>
@@ -103,7 +103,7 @@ async function confirmRemove() {
         v-for="project in projects"
         :key="project.id"
         class="voice-card"
-        :style="project.id === selectedProjectId ? 'border-color:#7c5cff;box-shadow:0 0 0 1px #7c5cff' : ''"
+        :style="project.id === selectedProjectId ? 'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)' : ''"
         @click="selectProject(project.id)"
       >
         <div class="voice-avatar">{{ project.name.slice(0, 1) }}</div>

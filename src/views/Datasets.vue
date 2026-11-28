@@ -80,13 +80,13 @@ function confirmDelete() {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>数据集</h2>
+          <h2>新建数据集</h2>
           <p class="muted small">上传原始音频，创建一个待预处理的数据集；一次可选中多个音频，它们属于同一个数据集。</p>
         </div>
         <span class="tag">{{ visibleDatasets.length }} 个</span>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
-      <div v-if="message" class="banner" style="border-color:#1f4b3d;background:#0f1d19;color:#b8f5df">{{ message }}</div>
+      <div v-if="message" class="banner success">{{ message }}</div>
       <label class="field">
         <span>原始音频</span>
         <div class="row gap">
@@ -165,9 +165,9 @@ function confirmDelete() {
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
-  border: 1px solid #263349;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #0e141d;
+  background: var(--bg);
   font-size: 12px;
 }
 .check-col {
@@ -175,11 +175,11 @@ function confirmDelete() {
   text-align: center;
 }
 .check-col input {
-  accent-color: #6f8fff;
+  accent-color: var(--accent);
 }
 .pending-files li span {
   flex: 1;
   min-width: 0;
-  color: #aebbd0;
+  color: var(--muted);
 }
 </style>

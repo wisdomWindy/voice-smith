@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useEngineStore } from './stores/engine'
 import { isTauri, platformTag } from './lib/engine'
 import { APP_VERSION } from './lib/release'
 import SetupDialog from './components/SetupDialog.vue'
+import AppIcon from './components/AppIcon.vue'
 
 const engine = useEngineStore()
+const route = useRoute()
 const platform = ref('windows-x64')
 const booted = ref(false)
 const setupOpen = ref(false)
@@ -16,7 +18,41 @@ const runtimeInstalled = ref(false)
 const showDonate = ref(false)
 const donateTab = ref<'alipay' | 'wechat'>('alipay')
 
+const NAV_ITEMS = [
+  { to: '/projects', label: '项目', icon: 'projects', hint: '工作区' },
+  { to: '/datasets', label: '数据集', icon: 'datasets', hint: '导入 / 切片' },
+  { to: '/preprocess', label: '预处理', icon: 'preprocess', hint: '特征提取' },
+  { to: '/training', label: '训练', icon: 'training', hint: '冒烟 / 长训' },
+  { to: '/', label: '推理', icon: 'inference', hint: '试听 / 导出' },
+  { to: '/tasks', label: '任务', icon: 'tasks', hint: '队列 / 日志' },
+  { to: '/settings', label: '设置', icon: 'settings', hint: '环境 / 更新' },
+]
+
+const PIPELINE = [
+  { to: '/projects', label: '项目' },
+  { to: '/datasets', label: '数据集' },
+  { to: '/preprocess', label: '预处理' },
+  { to: '/training', label: '训练' },
+  { to: '/', label: '推理' },
+]
+
 const shellVisible = computed(() => booted.value && (!setupOpen.value || runtimeInstalled.value))
+const pageTitle = computed(() => String(route.meta.title ?? '配音工作台'))
+const pageDesc = computed(() => String(route.meta.desc ?? 'GPT-SoVITS 本地配音工作流'))
+const dataDir = computed(() => engine.health?.data_dir ?? '—')
+const runtimeLine = computed(() =>
+  engine.health ? `${engine.health.engine} · Python ${engine.health.python}` : '本地引擎',
+)
+
+function isNavActive(to: string): boolean {
+  if (to === '/') return route.path === '/'
+  return route.path === to || route.path.startsWith(`${to}/`)
+}
+
+function isPipelineActive(to: string): boolean {
+  if (to === '/') return route.path === '/'
+  return route.path === to || route.path.startsWith(`${to}/`)
+}
 
 async function checkSetup() {
   try {
@@ -98,79 +134,86 @@ const statusText = computed(() => {
   if (engine.status === 'error') return '引擎异常'
   return '引擎启动中'
 })
-
-const statusDetail = computed(() => {
-  if (engine.status === 'ready') {
-    return engine.health ? `${engine.health.engine} · Python ${engine.health.python}` : '本地引擎'
-  }
-  if (engine.status === 'error') return engine.error || 'sidecar 未启动'
-  return '正在连接本地 sidecar…'
-})
 </script>
 
 <template>
   <div v-if="shellVisible" class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">VS</div>
+        <img class="brand-mark" src="/app-icon.png" alt="VoiceSmith" draggable="false" />
         <div>
           <div class="brand-title">VoiceSmith</div>
-          <div class="brand-sub">GPT-SoVITS 桌面工坊</div>
+          <div class="brand-sub">v{{ APP_VERSION }}</div>
         </div>
       </div>
 
-      <nav class="nav">
-        <RouterLink to="/projects" class="nav-item">项目</RouterLink>
-        <RouterLink to="/datasets" class="nav-item">数据集</RouterLink>
-        <RouterLink to="/preprocess" class="nav-item">预处理</RouterLink>
-        <RouterLink to="/training" class="nav-item">训练</RouterLink>
-        <RouterLink to="/" class="nav-item">推理</RouterLink>
-        <RouterLink to="/tasks" class="nav-item">任务</RouterLink>
-        <RouterLink to="/settings" class="nav-item">设置</RouterLink>
+      <nav class="nav" aria-label="主导航">
+        <RouterLink v-for="item in NAV_ITEMS" :key="item.to" :to="item.to" class="nav-item" :class="{ 'nav-active': isNavActive(item.to) }">
+          <AppIcon :name="item.icon" class="nav-icon" />
+          <span class="nav-label">{{ item.label }}</span>
+          <span class="nav-hint">{{ item.hint }}</span>
+        </RouterLink>
       </nav>
 
       <div class="sidebar-foot">
-        <button class="button ghost small" style="width:100%;margin-bottom:8px" @click="showDonate = true">
-          支持 VoiceSmith
+        <button class="support-link" type="button" @click="showDonate = true">
+          <AppIcon name="heart" style="width: 14px; height: 14px; color: var(--accent)" />
+          <span>支持作者</span>
         </button>
-        <div class="engine-card">
+        <div class="foot-status">
           <div class="engine-row">
             <span class="dot" :class="engine.status"></span>
             <span>{{ statusText }}</span>
           </div>
-          <p class="muted small">{{ statusDetail }}</p>
-          <button class="button ghost small" :disabled="engine.status === 'starting'" @click="engine.restart()">
+          <div class="foot-line ellipsis" :title="dataDir">数据目录：{{ dataDir }}</div>
+          <div class="foot-line ellipsis" :title="runtimeLine">运行时：{{ runtimeLine }}</div>
+          <button
+            class="button ghost small foot-restart"
+            :disabled="engine.status === 'starting'"
+            @click="engine.restart()"
+          >
             重启引擎
           </button>
         </div>
-        <div class="muted tiny">v{{ APP_VERSION }} · 本地优先 · 数据不出机</div>
       </div>
     </aside>
 
-    <main class="main">
-      <header class="topbar">
-        <div>
-          <h1>配音工作台</h1>
-          <p class="muted small">文本 → 音色 → 参数 → 试听 → 导出</p>
-        </div>
-        <div class="status-pill" :class="engine.status">
-          <span class="dot" :class="engine.status"></span>
-          {{ statusText }}
-        </div>
-      </header>
-
-      <div v-if="setupChecked && setupPending && !setupOpen" class="notice">
-        <span><strong>首次设置未完成：</strong>离线资产（模型权重）或使用规约还未确认，推理与训练暂不可用。</span>
-        <button class="button ghost small" @click="openSetup">继续安装</button>
+    <div class="main">
+      <div class="pipeline">
+        <template v-for="(step, index) in PIPELINE" :key="step.to">
+          <RouterLink :to="step.to" class="pipeline-step" :class="{ active: isPipelineActive(step.to) }">
+            <span class="step-no">{{ index + 1 }}</span>
+            <span>{{ step.label }}</span>
+          </RouterLink>
+          <span v-if="index < PIPELINE.length - 1" class="pipeline-sep">·</span>
+        </template>
       </div>
 
-      <div v-if="engine.error" class="banner">
-        <strong>引擎未就绪：</strong>{{ engine.error }}
-        <button class="button ghost small" @click="engine.restart()">重试</button>
-      </div>
+      <div class="main-scroll">
+        <header class="page-head">
+          <div>
+            <h1>{{ pageTitle }}</h1>
+            <p>{{ pageDesc }}</p>
+          </div>
+          <div class="status-pill" :class="engine.status">
+            <span class="dot" :class="engine.status"></span>
+            {{ statusText }}
+          </div>
+        </header>
 
-      <RouterView />
-    </main>
+        <div v-if="setupChecked && setupPending && !setupOpen" class="notice">
+          <span><strong>首次设置未完成：</strong>离线资产（模型权重）或使用规约还未确认，推理与训练暂不可用。</span>
+          <button class="button ghost small" @click="openSetup">继续安装</button>
+        </div>
+
+        <div v-if="engine.error" class="banner">
+          <strong>引擎未就绪：</strong>{{ engine.error }}
+          <button class="button ghost small" @click="engine.restart()">重试</button>
+        </div>
+
+        <RouterView />
+      </div>
+    </div>
   </div>
 
   <div v-if="showDonate" class="modal-mask" @click.self="showDonate = false">

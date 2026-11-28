@@ -81,7 +81,7 @@ async function exportDiagnostics() {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>设置</h2>
+          <h2>引擎与更新</h2>
           <p class="muted small">M0 只读展示引擎信息；数据目录、更新检查与模型资产在后续迭代。</p>
         </div>
         <button class="button ghost" :disabled="updating" @click="checkUpdate">

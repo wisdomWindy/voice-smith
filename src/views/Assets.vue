@@ -71,7 +71,7 @@ watch(
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>模型资产</h2>
+          <h2>资产状态</h2>
           <p class="muted small">
             路径以 GPT-SoVITS 引擎为根：pretrained_models、G2PWModel、uvr5_weights、asr/models。
           </p>
@@ -90,7 +90,7 @@ watch(
       </div>
 
       <div v-if="error" class="inline-error">{{ error }}</div>
-      <div v-if="message" class="banner" style="border-color:#1f4b3d;background:#0f1d19;color:#b8f5df">{{ message }}</div>
+      <div v-if="message" class="banner success">{{ message }}</div>
 
       <div class="table-wrap" style="margin-top:14px">
         <table class="table">

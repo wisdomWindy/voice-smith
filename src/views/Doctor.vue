@@ -30,7 +30,7 @@ async function run() {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>环境自检</h2>
+          <h2>检查项</h2>
           <p class="muted small">八项检查：Python、PyTorch、CUDA、GPU、ffmpeg、磁盘、文本前端、GPT/SoVITS/SV 权重。</p>
         </div>
         <button class="button primary" :disabled="!engine.ready || loading" @click="run">

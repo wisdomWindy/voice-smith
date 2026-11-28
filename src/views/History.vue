@@ -52,7 +52,7 @@ onMounted(() => {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>历史记录</h2>
+          <h2>合成记录</h2>
           <p class="muted small">本地任务与产物；音频只保存在本机。</p>
         </div>
         <button class="button ghost" @click="load">刷新</button>

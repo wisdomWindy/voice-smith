@@ -49,13 +49,13 @@ watch(
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>模型库</h2>
+          <h2>训练产出模型</h2>
           <p class="muted small">训练产出的 S1/S2 权重；删除前确认没有被音色引用。</p>
         </div>
         <button class="button ghost" @click="load">刷新</button>
       </div>
       <div v-if="error" class="inline-error">{{ error }}</div>
-      <div v-if="message" class="banner" style="border-color:#1f4b3d;background:#0f1d19;color:#b8f5df">{{ message }}</div>
+      <div v-if="message" class="banner success">{{ message }}</div>
       <div class="table-wrap">
         <table class="table">
           <thead><tr><th>实验</th><th>类型</th><th>文件</th><th>大小</th><th>修改时间</th><th></th></tr></thead>
