@@ -293,12 +293,20 @@ def _newest(path: Path, pattern: str) -> Optional[Path]:
 def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., None]) -> None:
     assert ROOT is not None and ENGINE is not None
     engine_paths.ensure_mounts(ENGINE)
+    resume = bool(spec.get("resume"))
     log_path = ROOT / "logs" / f"{job_id}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text("", encoding="utf-8")
+    if resume and log_path.exists():
+        _append(log_path, "\n=== resume training ===\n")
+    else:
+        log_path.write_text("", encoding="utf-8")
     exp_name = re.sub(r"[^0-9A-Za-z_\-\u4e00-\u9fff]+", "_", str(spec.get("exp_name") or "voice"))[:40] or "voice"
-    exp_dir = ROOT / "experiments" / f"{exp_name}_{job_id[-6:]}"
+    override = str(spec.get("exp_dir") or "").strip()
+    exp_dir = Path(override) if override else ROOT / "experiments" / f"{exp_name}_{job_id[-6:]}"
     exp_dir.mkdir(parents=True, exist_ok=True)
+    # Persist the experiment directory immediately: a pause/failure still needs
+    # it to find the checkpoints when the user continues training.
+    on_update(job_id, output_dir=str(exp_dir), detail="继续训练" if resume else "准备训练")
 
     try:
         on_update(job_id, stage="validate", progress=3, detail="校验数据集")
@@ -415,8 +423,8 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
             s2_model=str(s2_model) if s2_model else None,
         )
     except TrainingCancelled:
-        _append(log_path, "training cancelled by user")
-        on_update(job_id, stage="cancelled", progress=0, detail="已取消")
+        _append(log_path, "training stopped by user; checkpoints kept for resume")
+        on_update(job_id, stage="cancelled", progress=0, detail="已停止，可继续")
     except Exception as exc:  # noqa: BLE001
         _append(log_path, f"training failed: {exc}")
         on_update(job_id, stage="failed", progress=0, detail=str(exc)[:1000])

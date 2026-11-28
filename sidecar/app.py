@@ -146,6 +146,7 @@ def init_db() -> None:
               output_dir TEXT,
               s1_model TEXT,
               s2_model TEXT,
+              spec_json TEXT NOT NULL DEFAULT '{}',
               created_at TEXT NOT NULL,
               finished_at TEXT
             );
@@ -190,6 +191,9 @@ def init_db() -> None:
         existing_jobs = {row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
         if "batch_id" not in existing_jobs:
             conn.execute("ALTER TABLE jobs ADD COLUMN batch_id TEXT")
+        existing_trainings = {row[1] for row in conn.execute("PRAGMA table_info(trainings)").fetchall()}
+        if "spec_json" not in existing_trainings:
+            conn.execute("ALTER TABLE trainings ADD COLUMN spec_json TEXT NOT NULL DEFAULT '{}'")
         conn.execute(
             "INSERT OR IGNORE INTO voices(id,name,type,status,created_at) VALUES(?,?,?,?,?)",
             ("demo_edge", "示例音色（Mock）", "free", "ready", now_iso()),
@@ -897,7 +901,7 @@ def update_training(training_id: str, **fields: Any) -> None:
         conn.commit()
 
 
-def create_training_record(req: TrainingRequest) -> dict[str, Any]:
+def create_training_record(req: TrainingRequest, spec: dict[str, Any]) -> dict[str, Any]:
     training_id = f"train_{uuid.uuid4().hex[:12]}"
     log_path = DATA_DIR / "training" / "logs" / f"{training_id}.log"
     with LOCK, closing(connect()) as conn:
@@ -907,14 +911,35 @@ def create_training_record(req: TrainingRequest) -> dict[str, Any]:
                 return training_row(row)
         conn.execute(
             """
-            INSERT INTO trainings(id,request_id,exp_name,dataset_list,status,stage,progress,detail,log_path,created_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO trainings(id,request_id,exp_name,dataset_list,status,stage,progress,detail,log_path,spec_json,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (training_id, req.request_id, req.exp_name, req.dataset_list, "queued", "queued", 0, "排队", str(log_path), now_iso()),
+            (
+                training_id,
+                req.request_id,
+                req.exp_name,
+                req.dataset_list,
+                "queued",
+                "queued",
+                0,
+                "排队",
+                str(log_path),
+                json.dumps(spec, ensure_ascii=False),
+                now_iso(),
+            ),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM trainings WHERE id = ?", (training_id,)).fetchone()
         return training_row(row)
+
+
+def active_training() -> Optional[dict[str, Any]]:
+    with LOCK, closing(connect()) as conn:
+        row = conn.execute(
+            "SELECT * FROM trainings WHERE status IN ('queued','running','cancelling') "
+            "ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    return training_row(row) if row else None
 
 
 def training_callback(training_id: str, **fields: Any) -> None:
@@ -1087,23 +1112,23 @@ def task_cancel(task_id: str) -> dict[str, Any]:
 def training_create(req: TrainingRequest) -> dict[str, Any]:
     if not Path(req.dataset_list).expanduser().exists():
         raise HTTPException(status_code=404, detail="dataset list not found")
-    record = create_training_record(req)
+    active = active_training()
+    if active:
+        raise HTTPException(status_code=409, detail="已有训练在执行或排队，请先停止后再开始")
+    spec = {
+        "dataset_list": req.dataset_list,
+        "exp_name": req.exp_name,
+        "s1_epochs": req.s1_epochs,
+        "s2_epochs": req.s2_epochs,
+        "batch_size": req.batch_size,
+        "num_workers": req.num_workers,
+        "force": req.force,
+    }
+    record = create_training_record(req, spec)
     if record["status"] == "queued":
         threading.Thread(
             target=training_runner.run_training,
-            args=(
-                record["id"],
-                {
-                    "dataset_list": req.dataset_list,
-                    "exp_name": req.exp_name,
-                    "s1_epochs": req.s1_epochs,
-                    "s2_epochs": req.s2_epochs,
-                    "batch_size": req.batch_size,
-                    "num_workers": req.num_workers,
-                    "force": req.force,
-                },
-                training_callback,
-            ),
+            args=(record["id"], spec, training_callback),
             daemon=True,
         ).start()
     return record
@@ -1207,6 +1232,41 @@ def training_cancel(training_id: str) -> dict[str, Any]:
         if current and current["status"] in {"succeeded", "failed", "cancelled"}:
             return current
     update_training(training_id, status="cancelled", detail="已取消")
+    return get_training(training_id) or record
+
+
+@app.post("/api/v1/trainings/{training_id}/resume", status_code=202, dependencies=[Depends(require_token)])
+def training_resume(training_id: str) -> dict[str, Any]:
+    record = get_training(training_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="training not found")
+    if record["status"] not in {"failed", "cancelled"}:
+        raise HTTPException(status_code=409, detail="只有已停止或失败的训练可以继续")
+    active = active_training()
+    if active and active["id"] != training_id:
+        raise HTTPException(status_code=409, detail="已有训练在执行或排队，请先停止")
+    exp_dir = str(record.get("output_dir") or "")
+    if not exp_dir or not Path(exp_dir).is_dir():
+        raise HTTPException(status_code=409, detail="找不到上次训练的检查点，请重新开始")
+    checkpoints = list((Path(exp_dir) / "logs_s1" / "ckpt").glob("*.ckpt")) + list(
+        (Path(exp_dir) / "logs_s2_v5turbo").glob("G_*.pth")
+    )
+    if not checkpoints:
+        raise HTTPException(status_code=409, detail="没有可继续的检查点（训练可能还没保存进度）")
+    try:
+        spec = json.loads(record.get("spec_json") or "{}")
+    except json.JSONDecodeError:
+        spec = {}
+    spec.setdefault("dataset_list", record["dataset_list"])
+    spec.setdefault("exp_name", record["exp_name"])
+    spec["exp_dir"] = exp_dir
+    spec["resume"] = True
+    update_training(training_id, status="queued", stage="queued", progress=0, detail="继续训练", finished_at=None)
+    threading.Thread(
+        target=training_runner.run_training,
+        args=(training_id, spec, training_callback),
+        daemon=True,
+    ).start()
     return get_training(training_id) or record
 
 

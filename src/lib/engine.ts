@@ -419,6 +419,11 @@ export class EngineClient {
     return (await response.json()) as Training
   }
 
+  async resumeTraining(id: string): Promise<Training> {
+    const response = await this.request(`/api/v1/trainings/${id}/resume`, { method: 'POST' })
+    return (await response.json()) as Training
+  }
+
   async assets(): Promise<AssetReport> {
     const response = await this.request('/api/v1/assets')
     return (await response.json()) as AssetReport

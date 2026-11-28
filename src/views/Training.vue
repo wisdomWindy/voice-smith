@@ -23,6 +23,31 @@ const readyDatasets = computed(() => datasets.value.filter((item) => item.projec
 const selectedDataset = computed(() => readyDatasets.value.find((item) => item.id === selectedDatasetId.value))
 const canStart = computed(() => Boolean(selectedDataset.value && !starting.value && !busy.value))
 const busy = computed(() => items.value.some((item) => ['queued', 'running', 'cancelling'].includes(item.status)))
+const activeTraining = computed(() => items.value.find((item) => ['queued', 'running', 'cancelling'].includes(item.status)) || null)
+const resumableTraining = computed(() => {
+  if (activeTraining.value) return null
+  const list = selectedDataset.value?.listPath
+  const name = expName.value.trim() || 'my_voice'
+  return (
+    items.value.find(
+      (item) =>
+        ['failed', 'cancelled'].includes(item.status) &&
+        item.dataset_list === list &&
+        item.exp_name === name &&
+        Boolean(item.output_dir),
+    ) || null
+  )
+})
+const primaryLabel = computed(() => {
+  if (activeTraining.value) return cancelling.value ? '停止中…' : '停止训练'
+  if (resumableTraining.value) return starting.value ? '继续中…' : '继续训练'
+  return starting.value ? '启动中…' : '开始训练'
+})
+const primaryDisabled = computed(() => {
+  if (starting.value || cancelling.value) return true
+  if (activeTraining.value || resumableTraining.value) return false
+  return !canStart.value
+})
 
 async function load() {
   if (!engine.client) return
@@ -55,16 +80,40 @@ async function start() {
   }
 }
 
-async function cancel() {
-  const active = items.value.find((item) => ['queued', 'running', 'cancelling'].includes(item.status))
+async function stop() {
+  const active = activeTraining.value
   if (!engine.client || !active || cancelling.value) return
   cancelling.value = true
+  error.value = ''
   try {
     await engine.client.cancelTraining(active.id)
     await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
   } finally {
     cancelling.value = false
   }
+}
+
+async function resume() {
+  const target = resumableTraining.value
+  if (!engine.client || !target || starting.value) return
+  starting.value = true
+  error.value = ''
+  try {
+    await engine.client.resumeTraining(target.id)
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    starting.value = false
+  }
+}
+
+async function primaryAction() {
+  if (activeTraining.value) return stop()
+  if (resumableTraining.value) return resume()
+  return start()
 }
 
 watch(
@@ -139,8 +188,19 @@ onUnmounted(() => {
         </label>
       </div>
       <div class="row gap" style="margin-top:14px">
-        <button class="button primary" :disabled="!canStart" @click="start">{{ starting ? '启动中…' : '开始训练' }}</button>
-        <button v-if="busy" class="button ghost" :disabled="cancelling" @click="cancel">{{ cancelling ? '停止中…' : '取消训练' }}</button>
+        <button class="button primary" :disabled="primaryDisabled" @click="primaryAction">{{ primaryLabel }}</button>
+      </div>
+      <div v-if="activeTraining" class="job-block">
+        <div class="row space-between">
+          <span>{{ activeTraining.stage }} · {{ activeTraining.detail || '训练中' }}</span>
+          <strong>{{ Math.min(100, activeTraining.progress) }}%</strong>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" :style="{ width: `${Math.min(100, activeTraining.progress)}%` }"></div>
+        </div>
+      </div>
+      <div v-else-if="resumableTraining" class="notice">
+        上次训练已停止。点「继续训练」会加载最近一次检查点，保留之前的训练权重并接着训练，不是从头开始。
       </div>
     </div>
 

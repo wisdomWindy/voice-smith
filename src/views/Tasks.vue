@@ -39,6 +39,12 @@ async function retryTraining(item: Training, force = false) {
   await load()
 }
 
+async function resumeTraining(item: Training) {
+  if (!engine.client) return
+  await engine.client.resumeTraining(item.id)
+  await load()
+}
+
 async function cancelJob(item: Job) {
   if (!engine.client) return
   await engine.client.cancelJob(item.id)
@@ -144,6 +150,7 @@ onUnmounted(() => {
               <td class="ellipsis">{{ item.detail || '—' }}</td>
               <td class="row gap">
                 <button v-if="isActive(item.status)" class="button ghost small" @click="cancelTraining(item)">取消</button>
+                <button v-if="['failed', 'cancelled'].includes(item.status) && item.output_dir" class="button ghost small" @click="resumeTraining(item)">继续</button>
                 <button v-if="['failed', 'cancelled'].includes(item.status)" class="button ghost small" @click="retryTraining(item)">重试</button>
                 <button v-if="item.status === 'failed'" class="button ghost small" @click="retryTraining(item, true)">强制重试</button>
               </td>
