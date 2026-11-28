@@ -189,6 +189,7 @@ onUnmounted(() => {
       </div>
       <div class="row gap" style="margin-top:14px">
         <button class="button primary" :disabled="primaryDisabled" @click="primaryAction">{{ primaryLabel }}</button>
+        <button v-if="resumableTraining" class="button ghost" :disabled="starting || cancelling" @click="start">重新开始</button>
       </div>
       <div v-if="activeTraining" class="job-block">
         <div class="row space-between">
@@ -200,7 +201,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div v-else-if="resumableTraining" class="notice">
-        上次训练已停止。点「继续训练」会加载最近一次检查点，保留之前的训练权重并接着训练，不是从头开始。
+        上次训练已停止。点「继续训练」会加载最近一次检查点，保留之前的训练权重并接着训练，不是从头开始；若上次尚未保存检查点，可点「重新开始」。
       </div>
     </div>
 

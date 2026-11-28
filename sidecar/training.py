@@ -32,6 +32,7 @@ ENGINE: Optional[Path] = None
 _WEIGHTS: Optional[Path] = None
 _LOCK = threading.Lock()
 _CURRENT: dict[str, subprocess.Popen[str]] = {}
+_RUNNING: set[str] = set()
 _CANCEL: set[str] = set()
 
 
@@ -52,6 +53,16 @@ def configure(data_dir: Path, engine_root: Path) -> None:
 def _weights() -> Path:
     assert _WEIGHTS is not None
     return _WEIGHTS
+
+
+def is_running(job_id: str) -> bool:
+    with _LOCK:
+        return job_id in _RUNNING
+
+
+def any_running() -> bool:
+    with _LOCK:
+        return bool(_RUNNING)
 
 
 def request_cancel(job_id: str) -> None:
@@ -292,6 +303,8 @@ def _newest(path: Path, pattern: str) -> Optional[Path]:
 
 def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., None]) -> None:
     assert ROOT is not None and ENGINE is not None
+    with _LOCK:
+        _RUNNING.add(job_id)
     engine_paths.ensure_mounts(ENGINE)
     resume = bool(spec.get("resume"))
     log_path = ROOT / "logs" / f"{job_id}.log"
@@ -432,3 +445,4 @@ def run_training(job_id: str, spec: dict[str, Any], on_update: Callable[..., Non
         with _LOCK:
             _CANCEL.discard(job_id)
             _CURRENT.pop(job_id, None)
+            _RUNNING.discard(job_id)

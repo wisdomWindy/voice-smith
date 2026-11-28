@@ -1115,6 +1115,8 @@ def training_create(req: TrainingRequest) -> dict[str, Any]:
     active = active_training()
     if active:
         raise HTTPException(status_code=409, detail="已有训练在执行或排队，请先停止后再开始")
+    if training_runner.any_running():
+        raise HTTPException(status_code=409, detail="上一个训练进程仍在停止中，请稍后再试")
     spec = {
         "dataset_list": req.dataset_list,
         "exp_name": req.exp_name,
@@ -1242,6 +1244,10 @@ def training_resume(training_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="training not found")
     if record["status"] not in {"failed", "cancelled"}:
         raise HTTPException(status_code=409, detail="只有已停止或失败的训练可以继续")
+    if training_runner.is_running(training_id):
+        raise HTTPException(status_code=409, detail="训练进程仍在停止中，请稍后再试")
+    if training_runner.any_running():
+        raise HTTPException(status_code=409, detail="上一个训练进程仍在停止中，请稍后再试")
     active = active_training()
     if active and active["id"] != training_id:
         raise HTTPException(status_code=409, detail="已有训练在执行或排队，请先停止")
@@ -1259,6 +1265,11 @@ def training_resume(training_id: str) -> dict[str, Any]:
         spec = {}
     spec.setdefault("dataset_list", record["dataset_list"])
     spec.setdefault("exp_name", record["exp_name"])
+    spec.setdefault("s1_epochs", 5)
+    spec.setdefault("s2_epochs", 2)
+    spec.setdefault("batch_size", 2)
+    spec.setdefault("num_workers", 2)
+    spec.setdefault("force", False)
     spec["exp_dir"] = exp_dir
     spec["resume"] = True
     update_training(training_id, status="queued", stage="queued", progress=0, detail="继续训练", finished_at=None)
